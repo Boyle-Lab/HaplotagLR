@@ -954,9 +954,9 @@ def getArgs() -> object:
 
     phasing_parser_stats_error.add_argument(
         # Note that we are storing False here!
-        '--no_multcoeff', required = False, default = True, action = 'store_false',
-        #help = 'Do not apply the multinomial coefficient in the likelihood calculation. Default=False (The multinomal coefficient will be used.)',
-        help=argparse.SUPPRESS,
+        '--no_multcoeff', required = False, default = False, action = 'store_true',
+        help = 'Do not apply the multinomial coefficient in the likelihood calculation. Default=False (The multinomal coefficient will be used.)',
+        #help=argparse.SUPPRESS,
         dest = 'multinomial_correction'
     )
 
