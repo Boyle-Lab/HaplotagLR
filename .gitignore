@@ -6,3 +6,5 @@ example_data/*.fasta
 example_data/*.fq
 example_data/*.fastq
 
+build/
+dist/
