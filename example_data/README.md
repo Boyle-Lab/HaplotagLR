@@ -3,7 +3,7 @@
 
 To run LRphase on the example dataset, first install LRphase according to the directions [here](https://github.com/Boyle-Lab/LRphase).
 
-Next, download the example dataset (LRphase_Test_Data.tgz) from this link: [https://zenodo.org/record/7415834](https://zenodo.org/record/7415834), copy the archive to a suitable location and unpack the tarball:
+Next, download the example dataset (LRphase_Test_Data.tgz) to a suitable location from this link: [https://zenodo.org/record/7415834](https://zenodo.org/record/7415834) and unpack the tarball:
 ```
 tar -xvzf LRphase_Test_Data.tgz
 ```
