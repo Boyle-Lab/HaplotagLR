@@ -2,7 +2,7 @@
 # argument to indicate whether this is a major, minor, or patch release.
 
 # Increment version numbers
-bump2version --list $1
+bump2version --verbose --current-version$(cat VERSION) --list --commit $1
 
 # Update PyyPI
 python3 setup.py sdist bdist_wheel
