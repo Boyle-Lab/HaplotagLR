@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: LRphase
-Version: 1.0.1
+Version: 1.0.2
 Summary: Phasing individual long reads using known haplotype information.
 Home-page: https://github.com/Boyle-Lab/LRphase.git
 Author: Greg Farnum
