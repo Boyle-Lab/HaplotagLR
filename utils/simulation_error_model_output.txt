@@ -1,0 +1,10 @@
+Total errors in simulations: 790
+Min log-likelihood-ratio for errors: 6.000
+Max log-likelihood ratio for errors: 16.500
+Powerlaw fitting method: Likelihood
+Number of observations used in powerlaw fitting: 144
+Fitted powerlaw alpha: 7.57551
+Fitted powerlaw xmin: 7.56720
+Corrected powerlaw xmin: 7.56720
+Fitted powerlaw minimum xmin distance (D): 0.306
+Fitted powerlaw sigma: 0.54796

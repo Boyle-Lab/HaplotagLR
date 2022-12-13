@@ -1,0 +1,74 @@
+graft src
+graft tests
+
+include *.md
+include setup.py
+include pyproject.toml
+include LICENSE
+
+global-exclude *.py[cod] __pycache__/* *.so *.dylib
+
+
+
+# include README.md
+# include LICENSE
+# include MANIFEST.in
+# include requirements.txt
+# include setup.py
+# include LRphase/__init__.py
+# include LRphase/__main__.py
+# include LRphase/*.py
+# include tests/*
+# include tests/fastq/*.fastq
+# include tests/fastq/*
+# include tests/alignment_files/*.sam
+# include tests/alignment_files/*.bam
+# include tests/alignment_files/*.bam.bai
+# include tests/alignment_files/*.paf
+# include tests/alignment_files/*.maf
+# include tests/alignment_files/*
+# include tests/haplotype_info_vcf/*.vcf
+# include tests/haplotype_info_vcf/*.vcf.gz
+# include tests/haplotype_info_vcf/*
+# include tests/reference_sequence_fa/*
+# include LRphase/*
+# include LRphase/cli.py
+# include LRphase/__version__.py
+# data/urls.py
+# data/__init__.py
+# data/*
+
+
+# include pat1 pat2 ...
+
+# include all files matching any of the listed patterns
+
+# exclude pat1 pat2 ...
+
+# exclude all files matching any of the listed patterns
+
+# recursive-include dir pat1 pat2 ...
+
+# include all files under dir matching any of the listed patterns
+
+# recursive-exclude dir pat1 pat2 ...
+
+# exclude all files under dir matching any of the listed patterns
+
+# global-include pat1 pat2 ...
+
+# include all files anywhere in the source tree matching — & any of the listed patterns
+
+# global-exclude pat1 pat2 ...
+
+# exclude all files anywhere in the source tree matching — & any of the listed patterns
+
+# prune dir
+
+# exclude all files under dir
+
+# graft dir
+
+# include all files under dir
+
+# The patterns here are Unix-style “glob” patterns: * matches any sequence of regular filename characters, ? matches any single regular filename character, and [range] matches any of the characters in range (e.g., a-z, a-zA-Z, a-f0-9_.). The definition of “regular filename character” is platform-specific: on Unix it is anything except slash; on Windows anything except backslash or colon.
