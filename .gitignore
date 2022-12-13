@@ -1,0 +1,8 @@
+example_data/*.bam
+example_data/*.bai
+example_data/*.gz
+example_data/*.fa
+example_data/*.fasta
+example_data/*.fq
+example_data/*.fastq
+
