@@ -8,4 +8,5 @@ bump2version --verbose --current-version $(cat VERSION) --commit --tag --list $1
 python3 setup.py sdist bdist_wheel
 python3 -m twine upload dist/LRphase-$(cat VERSION)*
 
-# Bioconda is linked to GitHub repo, so no need to initiate updates here.
+# Bioconda is linked to GitHub repo, so no need to initiate updates here as long as each version is tagged as a release in github.
+# See https://widdowquinn.github.io/coding/update-bioconda-package/
