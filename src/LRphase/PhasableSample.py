@@ -60,7 +60,7 @@ class PhasableSample:
                 except:
                     continue
                 success = True
-<                break
+                break
             if not success:
                 raise Exception("ERROR: None of the bam files contain a header and none given. Exiting!")
 
@@ -171,9 +171,9 @@ class PhasableSample:
                     )
         return read
 
-    def __repr__(self):
+    #def __repr__(self):
         #return f'Sample Name: {self.sample}\nVCF: {self.vcf_file_path}\nReference sequence path: {str(self.reference_sequence_paths)}\nTotal sequences in reference files: {len(self.reference_sequence_names)}\nTotal Reference sequences in VCF: {len(self.reference_sequences_in_VCF)}\nAlignment Files: {str(self.alignment_file_paths)}\nTotal alignment files processed: {self.alignment_files_processed_count}\nTotal alignments: {self.total_alignments}\nTotal alignments processed: {self.alignments_processed_count}\nTotal unique reads observed: {len(self.unique_read_names)}'
-        return f'Sample Name: {self.sample}\nVCF: {self.vcf_file_path}\nReference sequence path: {str(self.reference_sequence_paths)}\nTotal sequences in reference files: {len(self.reference_sequence_names)}\nTotal Reference sequences in VCF: {len(self.reference_sequences_in_VCF)}\nAlignment Files: {str(self.alignment_file_paths)}\nTotal alignment files processed: {self.alignment_files_processed_count}\nTotal alignments: {self.total_alignments}\nTotal alignments processed: {self.alignments_processed_count}\n}'
+        return f'Sample Name: {self.sample}\nVCF: {self.vcf_file_path}\nReference sequence path: {str(self.reference_sequence_paths)}\nTotal sequences in reference files: {len(self.reference_sequence_names)}\nTotal Reference sequences in VCF: {len(self.reference_sequences_in_VCF)}\nAlignment Files: {str(self.alignment_file_paths)}\nTotal alignment files processed: {self.alignment_files_processed_count}\nTotal alignments: {self.total_alignments}\nTotal alignments processed: {self.alignments_processed_count}'
 
     def _get_RG_info_for_read(self, read: pysam.AlignedSegment, alignment_file: object) -> object:
         """

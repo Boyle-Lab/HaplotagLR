@@ -13,6 +13,11 @@ import powerlaw
 import time
 from LRphase.PhaseSet import powlaw_modified, _estimate_prior_probabilities
 
+# Import the memory profiler
+from memory_profiler import profile
+# instantiating the decorator
+#@profile
+
 __version__ = "1.0.2"
 
 # TO-DO:
