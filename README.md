@@ -13,6 +13,8 @@ LRphase phases long reads based on haplotype data in a VCF file.
 * powerlaw (https://github.com/jeffalstott/powerlaw)
 * pysam (https://github.com/pysam-developers/pysam)
 * pyliftover (https://github.com/konstantint/pyliftover)
+* requests (http://python-requests.org)
+* samtools (https://github.com/samtools/samtools)
 
 ### Simulation mode
 * pbsim2 (https://github.com/yukiteruono/pbsim2)
@@ -22,7 +24,7 @@ LRphase phases long reads based on haplotype data in a VCF file.
 
 We strongly recommend installing with conda, into a new environment:
 ```
-conda create -n LRphase_env -c conda-forge -c bioconda numpy pysam powerlaw pyliftover pbsim2 minimap2 LRphase
+conda create -n LRphase_env -c conda-forge -c bioconda numpy pysam powerlaw pyliftover pbsim2 minimap2 requests samtools LRphase
 ```
 
 Install with pip:
