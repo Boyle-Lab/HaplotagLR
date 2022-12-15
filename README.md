@@ -53,15 +53,14 @@ usage: LRphase phasing [-h] -v <VCF_FILE> -i <SAM/BAM/FASTQ>
                        [-o </path/to/output>] [-r <REF_FASTA>]
                        [-A <ASSEMBLY_NAME>] [-t <THREADS>] [-q] [-S]
                        [-O {combined,phase_tagged,full}] [-F FDR_THRESHOLD]
-                       [--sequencing_error_model {0,1,2}]
                        [--log_likelihood_threshold <MIN_LIKELIHOOD_RATIO>]
 ```
 
 #### Required Arguments
 | Argument | Description |
 |---|---|
-| __-v <VCF_FILE>, --vcf <VCF_FILE>__ | Path to vcf file with haplotype information that will be used for phasing. (Must be in .vcf.gz format with tabix index in same folder. If .vcf file is provided, bgzip and tabix must be installed and available on PATH because LRphase will attempt to convert it. |
-| __-i <SAM/BAM/FASTQ>__ | Path to sequencing file (.fasta) or alignment file (.bam or .sam) of long reads that will be used for phasing. If either a .sam file is provided or an index is not found, .sam and .bam file will be sorted and indexed with SAMtools. Sorted.bam files should be in same directory as their index (.sorted.bam.bai). **** NOTE: the -r/--reference argument is REQUIRED if using input in fastq format! ****|
+| __-v <VCF_FILE>, --vcf <VCF_FILE>__ |Path to vcf file with haplotype information that will be used for phasing. (Must be in .vcf.gz format with tabix index in same folder. If .vcf file is provided, bgzip and tabix must be installed and available on PATH because LRphase will attempt to convert it. EX: -v GM12878_haplotype.vcf.gz) |
+| __-i <SAM/BAM/FASTQ>__ | Path to sequencing file (.fasta) or alignment file (.bam or .sam) of long reads that will be used for phasing. If either a .sam file is provided or an index is not found, .sam and .bam file will be sorted and indexed with SAMtools. Sorted.bam files should be in same directory as their index (.sorted.bam.bai). EX: -a data/minion_GM12878_run3.sorted.bam, -i minion_GM12878_run3.sam) Path to long read file in .fastq format that will be used for alignment and phasing (ex: -i minion_GM12878_run3.fastq). **** NOTE: the -r/--reference argument is REQUIRED if using input in fastq format! ****|
 
 #### Optional Arguments
 | Argument | Description |
@@ -71,18 +70,21 @@ usage: LRphase phasing [-h] -v <VCF_FILE> -i <SAM/BAM/FASTQ>
 | __-r <REF_FASTA>, --reference <REF_FASTA>__ | Path to reference genome sequence file. REQUIRED if argument to -i a fastq file. |
 | __-A <ASSEMBLY_NAME>, --reference_assembly <ASSEMBLY_NAME>__ | Assembly for the reference genome. EX: -A hg38. |
 | __-t <THREADS>, --threads <THREADS>__ | Number of threads to use for mapping, sorting, and indexing steps. |
-| __-O {combined,phase_tagged,full}, --output_mode {combined,phase_tagged,full}__ | Specify whether/how phased, unphased, and nonphasable reads are printed to output. Modes available: combined: All reads will be written to a common output file. The phasing tag (HP:i:N) can be used to extract maternal/paternal phased reads, unphased reads, and nonphasable reads. phase_tagged: Phased reads for both maternal and paternal phases will be written to a single output file, while unphased and nonphasable reads will be written to their own respective output files. full: Maternal, paternal, unphased, and nonphasable reads will be printed to separate output files. |
-| __--sequencing_error_model {0,1,2}__ | Choose how to estimate sequencing error rates: 0: (default) Estimate per-base error rate as an average per read. 1: estimate per-base error rate locally around each het site. 2: Calculate per-base error rate using base quality scores WARNING: do not use option 2 unless you are sure that the basecaller reported actual error rates). |
-| __--log_likelihood_threshold <LOG_LIKELIHOOD_THRESHOLD>__ | Use a hard threshold on log-likelihood ratios when choosing the best phasing for each read. Only reads with log-likelihood ratios equal to or greater than this threshold will be assigned to a phase. |
-| __-F FDR_THRESHOLD, --FDR_threshold FDR_THRESHOLD__ | Control the false discovery rate at the given value using a negative-binomial estimate of the number of phasing errors (N) given the average per-base sequencing error rate observed among all phaseable reads. Phased reads are sorted by their observed log-likelihood ratios and the bottom N*(1-FDR) reads will be reassigned to the "Unphased" set. Setting this to zero or a negative value will skip this step. |
 | __-q, --quiet__ | Output to stderr from subprocesses will be muted. |
 | __-S, --silent__ | Output to stderr and stdout from subprocesses will be muted. |
+
+#### Output Options
+| __-O {combined,phase_tagged,full}, --output_mode {combined,phase_tagged,full}__ | Specify whether/how phased, unphased, and nonphasable reads are printed to output. Modes available: combined: All reads will be written to a common output file. The phasing tag (HP:i:N) can be used to extract maternal/paternal phased reads, unphased reads, and nonphasable reads. phase_tagged: Phased reads for both maternal and paternal phases will be written to a single output file, while unphased and nonphasable reads will be written to their own respective output files. full: Maternal, paternal, unphased, and nonphasable reads will be printed to separate output files. |
+
+#### Statistical Options for Phasing Mode
+| __-F FDR_THRESHOLD, --FDR_threshold FDR_THRESHOLD__ | Control the false discovery rate at the given value using a negative-binomial estimate of the number of phasing errors (N) given the average per-base sequencing error rate observed among all phaseable reads. Phased reads are sorted by their observed log-likelihood ratios and the bottom N*(1-FDR) reads will be reassigned to the "Unphased" set. Set this to zero to skip this step and return all phasing predictions. |
+| __--log_likelihood_threshold <LOG_LIKELIHOOD_THRESHOLD>__ | Use a hard threshold on log-likelihood ratios when phasing reads. Results will only be printed for predicted phasings with log-likelihood ratios equal to or greater than this threshold. Setting this to zero will cause all reads to be assigned to the phase to which they share the greatest number matches. Log-likelihood ratios will still be reported in the output in this case, but are not used for phasing decisions. |
 
 ## Example Dataset
 We provide a sample dataset and example usage [here](https://github.com/Boyle-Lab/LRphase/tree/main/example_data)
 
 ## Citing LRphase
-The LRphase algorithm and software release 1.0.0 are described in [pub link here](https://example.com). Please use the following citation if you use this software in your work:
+The LRphase algorithm and software release 1.0.3 are described in [pub link here](https://example.com). Please use the following citation if you use this software in your work:
 
 LRphase: an efficient algorithm for assigning haplotypic identity to long reads.
 Monica J. Holmes, Babak Mahjour, Christopher Castro, Gregory A. Farnum, Adam G. Diehl, Alan P. Boyle.
