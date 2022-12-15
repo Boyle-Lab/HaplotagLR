@@ -168,6 +168,14 @@ def _sort_and_index_alignment_file(long_reads_alignment_path, output_directory: 
 
 def _prepare_alignment(output_directory: str, long_reads_alignment_path: str, threads: int = 1) -> str:
     start_process_time = time.time()
+
+    # Check integrity of alignment file
+    cmd = "samtools quickcheck " + long_reads_alignment_path
+    exit_status = os.system(cmd)
+    if exit_status != 0:
+        # Bam file could not be read.
+        raise Exception("\nERROR: %s could not be read. This is likely due to a file that is incomplete or corrupt. Exiting. (IDP_prepare_alignment_177)\n" % (long_reads_alignment_path))
+
     long_read_file_pysam = pysam.AlignmentFile(long_reads_alignment_path)
     if long_read_file_pysam.format == 'BAM':
         if long_read_file_pysam.has_index():
@@ -201,6 +209,13 @@ def _unique_RG_IDs_from_RG_tags(RG_ID_dict: dict, unique_RG_IDs: dict, alignment
         unique_RG_IDs (dict):
         alignment_file_path (str):
     """
+    # Check integrity of alignment file
+    cmd = "samtools quickcheck " + long_reads_alignment_path
+    exit_status = os.system(cmd)
+    if exit_status != 0:
+        # Bam file could not be read.
+        raise Exception("\nERROR: %s could not be read. This is likely due to a file that is incomplete or corrupt. Exiting. (IDP_unique_RG_217)\n" % (long_reads_alignment_path))
+    
     with pysam.AlignmentFile(alignment_file_path, 'rb') as bam_file:
         RG_tags = bam_file.header.get('RG')
     if RG_tags is None:
@@ -290,6 +305,13 @@ def _compile_read_groups(
     if ignore_samples:
         RG_ID_dict[str(alignment_file_path)] = 'ignore_samples'
     else:
+        # Check integrity of alignment file
+        cmd = "samtools quickcheck " + alignment_file_path
+        exit_status = os.system(cmd)
+        if exit_status != 0:
+            # Bam file could not be read.
+            raise Exception("\nERROR: %s could not be read. This is likely due to a file that is incomplete or corrupt. Exiting. (IDP_compile_read_groups_314)\n" % (alignment_file_path))
+        
         with pysam.AlignmentFile(alignment_file_path, 'rb') as bam_file:
             RG_tags = bam_file.header.get('RG')
         if sample is not None:
@@ -548,7 +570,11 @@ class InputData:
         self.vcf_files.append({vcf_file_path:ignore_phase_sets})
         self.sample_to_vcf_file_dict = _sample_to_vcf_file_dict(self.vcf_files)
         self.sample_to_alignment_files = _sample_to_alignment_files(self.sample_to_vcf_file_dict, self.RG_ID_dict)
-        self._sample_to_reference_sequences_dict()
+        try:
+            self._sample_to_reference_sequences_dict()
+        except Exception as e:
+            sys.stderr.write("%s\n" % (e))
+            exit(2)
         self._sample_to_PG_dict()
 
         # Return path to the vcf file.
@@ -602,7 +628,13 @@ class InputData:
             return phasable_sample
         else:
             raise StopIteration()
-    
+
+
+    """
+    As implemented, this holds all the reads in memory simultaneously. As of 12/15/2022, this leads to 
+    excessive memory usage (>100G) and is causing problems for users. It would be better to structure this
+    so that it reads-in/holds in memory only what it needs at any given time.
+    """
     def add_reads(
             self, long_reads_alignment_path, sample = None, ID = None, haplotype = None, sample_description = None,
             reference_sequence_input = None, database = None, master_database = False, simulated = False,
@@ -624,7 +656,7 @@ class InputData:
                                                                                                 self.output_directory,
                                                                                                 threads=threads)
         except Exception as e:
-            sys.stderr.write("Error parsing long-read file: %s\n" % e.strerror)
+            sys.stderr.write("Error parsing long-read file: %s\n" % e)
             exit(2)
         if combined_long_read_fastq_path:
             if reference_sequence_input is None and self.reference_sequence_input is None:
@@ -720,7 +752,17 @@ class InputData:
         """
         Prepare a dictionary relating reference sequences to samples.
         """
+        if sam_file_path == None and sam_file == None:
+            raise Exception("No valid alignment files given. IP_sample_to_ref_seq_dict_753")
+
         if sam_file_path:
+            # Check integrity of alignment file
+            cmd = "samtools quickcheck " + sam_file_path
+            exit_status = os.system(cmd)
+            if exit_status != 0:
+                # Bam file could not be read.
+                raise Exception("\nERROR: %s could not be read. This is likely due to a file that is incomplete or corrupt. Exiting. (IDP_prepare_alignment_177)\n" % (sam_file_path))
+        
             aln_file = pysam.AlignmentFile(sam_file_path)
             for reference_sequence in aln_file.header['SQ']:
                 self.alignment_file_to_reference_sequences_dict[sam_file_path].append(reference_sequence)
@@ -728,6 +770,14 @@ class InputData:
         for sample in self.sample_to_vcf_file_dict:
             for sam_file_path in self.alignment_file_to_reference_sequences_dict:
                 if sam_file_path in self.sample_to_alignment_files[str(sample)]:
+                    # Check file integrity
+                    cmd = "samtools quickcheck " + sam_file_path
+                    exit_status = os.system(cmd)
+                    if exit_status != 0:
+                        # Bam file could not be read.
+                        sys.stderr.write("WARNING: %s could not be read. Reads will not be analysed. This is likely due to a file that is incomplete or corrupt.\n" % (sam_file_path))
+                        continue
+                    
                     aln_file = pysam.AlignmentFile(sam_file_path)
                     for reference_sequence in aln_file.header['SQ']:
                         if str(reference_sequence['SN']) not in [str(reference_seq['SN']) for reference_seq in
@@ -743,14 +793,33 @@ class InputData:
             sam_file_path:
             sam_file:
         """
+        if sam_file_path == None and sam_file == None:
+            raise Exception("No valid alignment files given. IP_sample_to_PG_dict_798")
+        
         if sam_file_path:
+            # Check file integrity
+            cmd = "samtools quickcheck " + sam_file_path
+            exit_status = os.system(cmd)
+            if exit_status != 0:
+                # Bam file could not be read.
+                raise Exception("\nERROR: %s could not be read. This is likely due to a file that is incomplete or corrupt. Exiting. (IDP_sample_to_PG_dict_805)\n" % (sam_file_path))
+            
             aln_file = pysam.AlignmentFile(sam_file_path)
             for reference_sequence in aln_file.header['SQ']:
                 self.alignment_file_to_reference_sequences_dict[sam_file_path].append(reference_sequence)
             aln_file.close()
+            
         for sample in self.sample_to_vcf_file_dict:            
             for sam_file_path in self.alignment_file_to_reference_sequences_dict:
                 if sam_file_path in self.sample_to_alignment_files[str(sample)]:
+                    # Check file integrity
+                    cmd = "samtools quickcheck " + sam_file_path
+                    exit_status = os.system(cmd)
+                    if exit_status != 0:
+                        # Bam file could not be read.
+                        sys.stderr.write("WARNING: %s could not be read. Reads will not be analysed. This is likely due to a file that is incomplete or corrupt.\n" % (sam_file_path))
+                        continue
+
                     aln_file = pysam.AlignmentFile(sam_file_path)
                     for PG_tag in aln_file.header['PG']:
                         PG_tag['ID'] = str(list(self.RG_ID_dict[sam_file_path].keys())[0])
@@ -929,6 +998,13 @@ class InputData:
         if ignore_samples:
             RG_ID_dict[str(alignment_file_path)] = 'ignore_samples'
         else:
+            # Check file integrity before opening
+            cmd = "samtools quickcheck " + alignment_file_path
+            exit_status = os.system(cmd)
+            if exit_status != 0:
+                # Bam file could not be read.
+                raise Exception("\nERROR: %s could not be read. This is likely due to a file that is incomplete or corrupt. Exiting. (IDP_compile_read_groups_1007)\n" % (alignment_file_path))
+            
             with pysam.AlignmentFile(alignment_file_path, 'rb') as bam_file:
                 RG_tags = bam_file.header.get('RG')
             if sample is not None:

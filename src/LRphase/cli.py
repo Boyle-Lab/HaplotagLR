@@ -918,15 +918,18 @@ def getArgs() -> object:
         type = float,
         required = False,
         default = 0.05,
-        help = 'Control the false discovery rate at the given value using a negative-binomial estimate of the number of phasing errors (N) given the average per-base sequencing error rate observed among all phaseable reads. Phased reads are sorted by their observed log-likelihood ratios and the bottom N*(1-FDR) reads will be reassigned to the "Unphased" set. Setting this to zero or a negative value will skip this step.'
+        help = 'Control the false discovery rate at the given value using a negative-binomial estimate of the number of phasing errors (N) given the average per-base sequencing error rate observed among all phaseable reads. Phased reads are sorted by their observed log-likelihood ratios and the bottom N*(1-FDR) reads will be reassigned to the "Unphased" set. Set this to zero to skip this step and return all phasing predictions.'
     )
-                    
+
     phasing_parser_stats_error.add_argument(
+        # Until the generalized multinomial coefficient is implemented, error models
+        # other than the default (0) will not produce valid probabilities. 
         '--sequencing_error_model',
         required = False,
         default = 0,
         choices = [0,1,2],
-        help = 'Use this option to choose how to estimate sequencing error rates: 0: estimate per-base error rate as an average per read. 1: estimate per-base error rate locally around each het site. 2: Calculate per-base error rate using base quality scores (WARNING: do not use option 2 unless you are sure that the basecaller reported actual error rates).',
+        #help = 'Use this option to choose how to estimate sequencing error rates: 0: estimate per-base error rate as an average per read. 1: estimate per-base error rate locally around each het site. 2: Calculate per-base error rate using base quality scores (WARNING: do not use option 2 unless you are sure that the basecaller reported actual error rates).',
+        help=argparse.SUPPRESS,
         dest = 'error_model',
         type = int
     )
@@ -948,15 +951,21 @@ def getArgs() -> object:
 
     phasing_parser_stats_error.add_argument(
         '--log_likelihood_threshold', type = float, required = False, default = -1,
-        help = 'Use a hard threshold on log-likelihood ratios when phasing reads. Results will only be printed for predicted phasings with log-likelihood ratios equal to or greater than this threshold.',
+        help = 'Use a hard threshold on log-likelihood ratios when phasing reads. Results will only be printed for predicted phasings with log-likelihood ratios equal to or greater than this threshold. Setting this to zero will cause all reads to be assigned to the phase to which they share the greatest number matches. Log-likelihood ratios will still be reported in the output in this case, but are not used for phasing decisions.',
         metavar = '<MIN_LIKELIHOOD_RATIO>'
     )
 
     phasing_parser_stats_error.add_argument(
+        #This option is permanently disabled!
+        #When using sequencing error models other than the default (shared error rate 
+        #across all positions in a read), we need this coefficient to produce valid
+        #probabilities. When local error rates are being used for each het site, we
+        #still need a coefficient, but must calculate it differently, so this option
+        #should never be used!
         # Note that we are storing False here!
         '--no_multcoeff', required = False, default = False, action = 'store_true',
-        help = 'Do not apply the multinomial coefficient in the likelihood calculation. Default=False (The multinomal coefficient will be used.)',
-        #help=argparse.SUPPRESS,
+        #help = 'Do not apply the multinomial coefficient in the likelihood calculation. Default=False (The multinomal coefficient will be used.)',
+        help=argparse.SUPPRESS,
         dest = 'multinomial_correction'
     )
 

@@ -32,7 +32,10 @@ class PhasableSample:
             silent = False
     ):
         self.sample = sample
-        
+
+        # Doing this here means that every phasable sample (of which there may be multiples)
+        # will have its own copy of the variant data in the VCF file. This is going to be
+        # EXTERMELY wasteful in terms of memory usage and should be fixed ASAP!
         self.vcf_file = pysam.VariantFile(vcf_file_path)
         self.vcf_file_path = vcf_file_path
         self.ignore_phase_sets = ignore_phase_sets
@@ -49,8 +52,17 @@ class PhasableSample:
         if bam_header:
             self.bam_header = bam_header
         else:
-            # Take the header from the first alignment file.
-            self.bam_header = pysam.AlignmentFile(self.alignment_file_paths[0], 'rb').header
+            # Take the header from an alignment file.
+            success = False
+            for i in range(len(self.alignment_file_paths)):
+                try:
+                    self.bam_header = pysam.AlignmentFile(self.alignment_file_paths[i], 'rb').header
+                except:
+                    continue
+                success = True
+                break
+            if not success:
+                raise Exception("ERROR: None of the bam files contain a header and none given. Exiting!")
 
         self.reference_sequence_names = reference_sequence_names
         self.reference_sequence_paths = reference_sequence_paths
@@ -92,6 +104,16 @@ class PhasableSample:
     def _pysam_bam_files_initialize(self):
         bam_files = []
         for alignment_file_path in self.alignment_file_paths:
+            # Here is where we will check bam file integrity with a call to samtools quickcheck.
+            # samtools quickcheck returns zero if a file is okay and non-zero otherwise.
+            # Will use os.system instead of subprocess.run as all we need is the exit status.
+            cmd = "samtools quickcheck " + alignment_file_path
+            #sys.stderr.write("Bam Check:\n")
+            exit_status = os.system(cmd)
+            if exit_status != 0:
+                # Bam file could not be read.
+                sys.stderr.write("WARNING: %s could not be read. Reads will not be analysed. This is likely due to a file that is incomplete or corrupt.\n" % (alignment_file_path))
+                continue
             bam_files.append(iter(pysam.AlignmentFile(alignment_file_path, 'rb')))
         return bam_files
 
