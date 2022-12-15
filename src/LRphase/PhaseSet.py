@@ -258,7 +258,9 @@ def _count_matches(
     ploidy_list = []
 
     if per_base_error_rate is not None:
-        q = per_base_error_rate + pseudocount
+        q = per_base_error_rate
+        if q == 0:
+            q = sys.float_info.min
         match_log_prob = math.log10(1 - q)
         error_log_prob = math.log10(q / 3)
 
@@ -284,11 +286,23 @@ def _count_matches(
             in phased_alleles.
             """
             if read_base_error_rates is not None:
+                """
+                This scoring mode equates to a generalized multinomial model, where
+                the error probability is allowed to vary from site to site. Therefore,
+                the current implementation of _multcoeff will not produce a valid
+                coefficient (see https://fractional-calculus.com/multinomial_theorem.pdf)
+                Before we can use these values, we need to generalize the multinomial
+                coefficient as described in the referenced pdf. Briefly, _multcoeff needs
+                to calculate fractional coefficients for each observed rate and sum the
+                values.                
+                """
                 # Precomputing these does not save time because it still requires
                 # a loop and these are only used once.
                 q = read_base_error_rates[i] + pseudocount
                 match_log_prob = math.log10(1-q)
                 error_log_prob = math.log10(q/3)
+                ## TO-DO: calculate read-specific generalized multinomial coefficient
+                
             for haplotype in range(0, ploidy):
                 # Begin relocated block
                 if len(phased_alleles[i][haplotype]) > 1:  # Probably to exclude indels/rearrangements
@@ -555,6 +569,12 @@ class PhaseSet:
         if not self.aligned_segment.is_unmapped or self.aligned_segment.is_aligned_to_contig_not_in_vcf:
             if len(self.gapped_alignment_positions) > 0:
 
+                """
+                Note that, as of 12/15/2022, error_models > 0 are disabled in cli.py since they will not
+                yield valid multinomial probabilities under the current implementation of _multcoeff.
+                See further notes in _count_matches.
+                """
+                
                 if error_model == 0:
                     self.per_base_mismatch_rate = self.aligned_segment.get_tag(tag = 'de')
                     self.error_rate_average_het_sites = self.aligned_segment.get_tag(tag = 'de')
