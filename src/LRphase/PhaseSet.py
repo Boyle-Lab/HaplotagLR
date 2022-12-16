@@ -256,13 +256,28 @@ def _count_matches(
     total_hets = 0
     total_hets_analyzed = 0
     ploidy_list = []
+    ploidy_phase_set = 0
+
+    # Sanity check for aberant invocation
+    if per_base_error_rate is None and read_base_error_rates is None:
+        # Throw a warning and return an empty result.
+        sys.stderr.write("WARNING: _count_matches invoked with no values for per_base_error_rate or read_base_error_rates. Affected read(s) will be labelled nonphasable.")
+        return log_probability_read_given_haplotype_i, non_matches, matches, total_hets, total_hets_analyzed, ploidy_phase_set
 
     if per_base_error_rate is not None:
         q = per_base_error_rate
+        # We've seen weirdness with log(0) errors in this portion of the code, so we
+        # need to explicitly check for q == 0.
         if q == 0:
             q = sys.float_info.min
         match_log_prob = math.log10(1 - q)
-        error_log_prob = math.log10(q / 3)
+        # Even with the above check, we've still seen log(0) errors here (which makes
+        # no sense). Until we can figure out why we're still seeing q == 0, wrapping
+        # this in a try/except block should prevent crashes.
+        try:
+            error_log_prob = math.log10(q / 3)
+        except:
+            error_log_prob = math.log10(sys.float_info.min)
 
     # print(read_bases, phased_alleles, read_base_error_rates, error_model)
     for i in range(len(read_bases)):
@@ -299,8 +314,13 @@ def _count_matches(
                 # Precomputing these does not save time because it still requires
                 # a loop and these are only used once.
                 q = read_base_error_rates[i] + pseudocount
+                if q == 0:
+                    q = sys.float_info.min
                 match_log_prob = math.log10(1-q)
-                error_log_prob = math.log10(q/3)
+                try:
+                    error_log_prob = math.log10(q/3)
+                except:
+                    error_log_prob = math.log10(sys.float_info.min)
                 ## TO-DO: calculate read-specific generalized multinomial coefficient
                 
             for haplotype in range(0, ploidy):
@@ -325,8 +345,6 @@ def _count_matches(
     """
     if total_hets_analyzed > 0:
         ploidy_phase_set = max(ploidy_list)
-    else:
-        ploidy_phase_set = 0
     
     if multinomial_correction:
         haplotype: int
