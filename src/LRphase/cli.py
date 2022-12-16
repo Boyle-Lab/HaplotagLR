@@ -13,7 +13,7 @@ import powerlaw
 import time
 from LRphase.PhaseSet import powlaw_modified, _estimate_prior_probabilities
 
-__version__ = "1.0.2"
+__version__ = "1.1.0"
 
 # TO-DO:
 ## The main phasing function should be a wrapper that loops over samples
