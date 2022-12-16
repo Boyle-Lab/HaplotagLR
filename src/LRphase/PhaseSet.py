@@ -120,7 +120,7 @@ def _read_base_error_rates_from_gapped_alignment(gapped_alignment_positions: obj
     for position in gapped_alignment_positions:
         if isinstance(position, str):
             if position[0] == '-':
-                read_base_error_rates.append(1)
+                read_base_error_rates.append(1)  # Should this be 0.5? Right now does not matter because we don't use gap positions in scoring.
         else:
             read_base_error_rates.append(per_base_error_rate)
     return read_base_error_rates
@@ -268,7 +268,11 @@ def _count_matches(
         q = per_base_error_rate
         # We've seen weirdness with log(0) errors in this portion of the code, so we
         # need to explicitly check for q == 0.
-        if q == 0:
+        #if q == 0:
+        # It turns out the errors are cropping up due to negative values being supplied
+        # for per_base_error_rate. Don't know where these are coming from right now, or why,
+        # but for now we can safeguard against this by checking for values < 0 too.
+        if q <= 0:  # Debugging 
             q = sys.float_info.min
         match_log_prob = math.log10(1 - q)
         # Even with the above check, we've still seen log(0) errors here (which makes
@@ -277,6 +281,9 @@ def _count_matches(
         try:
             error_log_prob = math.log10(q / 3)
         except:
+            sys.stderr.write("_count_matches: Math domain error encountered. Args: %s, %s, %s, %s, %s, %s\n" % (read_bases, phased_alleles, read_base_error_rates, per_base_error_rate, multinomial_correction, pseudocount))
+            # For debugging purposes, return and flag one of the values with something we never expect to see otherwise:
+            return 9999999999999999999999999, non_matches, matches, total_hets, total_hets_analyzed, ploidy_phase_set
             error_log_prob = math.log10(sys.float_info.min)
 
     # print(read_bases, phased_alleles, read_base_error_rates, error_model)
@@ -314,7 +321,7 @@ def _count_matches(
                 # Precomputing these does not save time because it still requires
                 # a loop and these are only used once.
                 q = read_base_error_rates[i] + pseudocount
-                if q == 0:
+                if q <= 0:
                     q = sys.float_info.min
                 match_log_prob = math.log10(1-q)
                 try:
@@ -324,11 +331,9 @@ def _count_matches(
                 ## TO-DO: calculate read-specific generalized multinomial coefficient
                 
             for haplotype in range(0, ploidy):
-                # Begin relocated block
                 if len(phased_alleles[i][haplotype]) > 1:  # Probably to exclude indels/rearrangements
                     continue
                 total_hets_analyzed += 0.5  # These are counted twice. Should prob be 1/ploidy instead of hard-coded 0.5.
-                # end relocated block
                 if read_base == phased_alleles[i][haplotype]:
                     log_probability_read_given_haplotype_i[haplotype] += match_log_prob
                     matches[haplotype] += 1
@@ -612,6 +617,9 @@ class PhaseSet:
                         self.per_base_mismatch_rate,
                         multinomial_correction
                     )
+                    # This is to watch for debug info from a log10(0) error:
+                    if self.log_probability_read_given_haplotype_i == 9999999999999999999999999:
+                        sys.stderr.write("%s\n" % (self.aligned_segment))
                     
                     self.log_likelihood_ratios, self.phase, self.max_phase, self.max_log_likelihood_ratio = _phasing_decision(
                         self.log_probability_read_given_haplotype_i,
