@@ -13,17 +13,13 @@ import powerlaw
 import time
 from LRphase.PhaseSet import powlaw_modified, _estimate_prior_probabilities
 
-# Import the memory profiler
-#from memory_profiler import profile
-# instantiating the decorator
-#@profile
-
 __version__ = "1.0.2"
 
 # TO-DO:
-# The main phasing function should be a wrapper that loops over samples
+## The main phasing function should be a wrapper that loops over samples
 # in the input VCF. Content of the current function should be moved out
 # and called once per sample in the VCF, unless args.one_sample is given.
+#@profile
 def phasing(args):
     """Main function for phasing mode
 
@@ -1233,7 +1229,7 @@ def getArgs() -> object:
     args.func(args)
     return args
 
-
+#@profile
 def main():
     # This only needs to call the getArgs method, which will then dispatch functions for the indicated runtime mode.
     args: argparse.Namespace = getArgs()
