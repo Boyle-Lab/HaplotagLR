@@ -845,7 +845,7 @@ class PhasedRead:
     
     @property
     def phasing_error_rate(self):
-        if self.phase == 'Nonphasable':
+        if self.phase in ['Nonphasable', 'nonphasable']:
             return 0.50
         if self.log_likelihood_ratio > 0:
             p = self.powlaw_modified(self.log_likelihood_ratio,
@@ -856,6 +856,7 @@ class PhasedRead:
                 return p
             else:
                 return pl
+        return 0.5 # Default is to assume random guess
     
     def powlaw_modified(self, x, a = 4.5, xmin = 2):
         return ((a - 1) / xmin) * math.pow(x / xmin, -1 * a)
