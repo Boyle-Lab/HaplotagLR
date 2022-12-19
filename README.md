@@ -24,7 +24,7 @@ LRphase phases long reads based on haplotype data in a VCF file.
 
 We strongly recommend installing with conda, into a new environment:
 ```
-conda create -n LRphase_env -c conda-forge -c bioconda numpy pysam powerlaw pyliftover pbsim2 minimap2 requests samtools LRphase
+conda create -n LRphase_env -c conda-forge -c bioconda numpy pysam powerlaw pyliftover pbsim2 minimap2 requests samtools LRphase python==3.7
 ```
 
 Install with pip:
