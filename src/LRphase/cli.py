@@ -13,7 +13,7 @@ import powerlaw
 import time
 from LRphase.PhaseSet import powlaw_modified, _estimate_prior_probabilities
 
-__version__ = "1.0.2"
+__version__ = "1.1.0"
 
 # TO-DO:
 ## The main phasing function should be a wrapper that loops over samples
@@ -937,21 +937,24 @@ def getArgs() -> object:
 
     # Options related to the powerlaw error rate approximation are hidden with
     # defaults set to disable filtering of results based on powerlaw error rate
-    # estimates. -E 1 stipulates that no predictions will be tossed out based on
+    # estimates. -E 1.0 stipulates that no predictions will be tossed out based on
     # empirical error rates, which should not exceed 0.5.
     phasing_parser_stats_error.add_argument(
         '-E', '--error_rate_threshold',
         type = float,
         required = False,
         #default = 0.01,
-        default = 1,
+        default = 1.0,
         #help = 'Error rate threshold on phasing results. This threshold equates to the estimated phasing error rate for an experiment, such that a threshold of 0.05 should be equivalent to a 5%% false-discovery rate. This rate is estimated based on a fitted power-law distribution with alpha and xmin parameters supplied with the --powlaw_alpha and --powlaw_xmin options. These parameters may be estimated by running the LRphase error_analysis mode.',
         help=argparse.SUPPRESS,
         dest = 'error_rate_threshold', metavar = '<MAX_ERROR_RATE>'
     )
 
     phasing_parser_stats_error.add_argument(
-        '--log_likelihood_threshold', type = float, required = False, default = -1,
+        '--log_likelihood_threshold',
+        type = float,
+        required = False,
+        default = -1.0,
         help = 'Use a hard threshold on log-likelihood ratios when phasing reads. Results will only be printed for predicted phasings with log-likelihood ratios equal to or greater than this threshold. Setting this to zero will cause all reads to be assigned to the phase to which they share the greatest number matches. Log-likelihood ratios will still be reported in the output in this case, but are not used for phasing decisions.',
         metavar = '<MIN_LIKELIHOOD_RATIO>'
     )

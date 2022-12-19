@@ -31,7 +31,7 @@ def main():
 
     metadata = dict(
         name = 'LRphase',
-        version = '1.0.2',
+        version = '1.1.0',
         license = 'MIT',
         description = 'Phasing individual long reads using known haplotype information.',
         description_content_type = 'text/plain',
