@@ -755,7 +755,7 @@ def simulate_data(haplotype_specific_fasta,
     return simulated_fastq
 
 
-def parse_simulated_data(input_data, output_streams, args, combined_output_bam):
+def parse_simulated_data(input_data, args, combined_output_bam):
     """
     Takes simulated alighments and parses out log-likelihood ratios and associated error counts.
     """
