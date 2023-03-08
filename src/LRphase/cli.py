@@ -372,7 +372,7 @@ def _chrom_sizes_dict_from_file(chrom_sizes):
             rec = line.strip('\n').split()
             chrom_sizes_dict[rec[0]] = int(rec[1])
     return(chrom_sizes_dict)
-    
+
 
 def _calculate_error_rate_from_het_count(het_count, sequencing_error_rate, prior_probs, powlaw_alpha, powlaw_xmin):
     """
@@ -463,6 +463,13 @@ def error_analysis(args):
     to use the object methods that Greg implemented. This should probably be addressed in
     a future release. --AGD
     """
+
+    # Get header data for the output bam from the hg38 chrom.sizes file.
+    chrom_sizes = _chrom_sizes_dict_from_file("hg38.chrom.sizes")  # Note the dangerously-hard-coded file name here!
+    
+    # Open a file to write phased bam output.    
+    combined_output_bam = AlignmentFile('%s/%s.combined_phasing_results.bam' % (args.output_directory_path, args.one_sample),
+                                        'wb', reference_names = list(chrom_sizes.keys()), reference_lengths = list(chrom_sizes.values()))
     
     # Prepare the haploytpe-specific fasta
     haplotypes = [1,2]  # TO-DO: Extract the number of haplotypes from the VCF
@@ -519,7 +526,8 @@ def error_analysis(args):
             input_data,
             haplotypes,
             haplotype_specific_fasta,
-            args
+            args,
+            combined_output_bam
         )
         for j in range(len(error_lr_list_i)):
             error_lr_list.append(error_lr_list_i[j])
@@ -602,7 +610,9 @@ def error_analysis(args):
 
     with open(args.output_directory_path + "/simulation_error_model_output.txt", 'w') as outfile:
         outfile.write("Total errors in simulations: %d\nMin log-likelihood-ratio for errors: %.3f\nMax log-likelihood ratio for errors: %.3f\nPowerlaw fitting method: %s\nNumber of observations used in powerlaw fitting: %d\nFitted powerlaw alpha: %.5f\nFitted powerlaw xmin: %.5f\nCorrected powerlaw xmin: %.5f\nFitted powerlaw minimum xmin distance (D): %.3f\nFitted powerlaw sigma: %.5f\n" % (len(error_lr_list), min(error_lr_list), max(error_lr_list), pl_fit.fit_method, pl_fit.n, pl_fit.alpha, pl_fit.xmin, corrected_xmin, pl_fit.D, pl_fit.sigma) )
-        
+
+    combined_output_bam.close()
+    
     runtime = time.time() - start_time
     sys.stderr.write('Analysis finished %s.\nTotal runtime %.2f seconds.\n' % (time.asctime(), runtime))
     return
@@ -643,7 +653,7 @@ def sum_unequal_hists(shorter_arr, longer_arr):
     return longer_arr + np.append(shorter_arr, np.zeros(len(longer_arr) - len(shorter_arr)))
 
 
-def simulate_results_for_iteration(input_data, haplotypes, haplotype_specific_fasta, args):
+def simulate_results_for_iteration(input_data, haplotypes, haplotype_specific_fasta, args, combined_output_bam):
     """
     Simulate data for a single iteration and tabulate results.
     """
@@ -679,7 +689,7 @@ def simulate_results_for_iteration(input_data, haplotypes, haplotype_specific_fa
         
         # Extract log-likelihood ratios and phasing results for properly-mapped reads with >= min_het_sites
         sys.stderr.write("Phasing simulated reads...\n")
-        hist_all_i, hist_err_i, bins_i, error_lr_list_i, error_read_list_i = parse_simulated_data(input_data, args)
+        hist_all_i, hist_err_i, bins_i, error_lr_list_i, error_read_list_i = parse_simulated_data(input_data, args, combined_output_bam)
         for j in range(len(error_lr_list_i)):
             error_lr_list.append(error_lr_list_i[j])
             error_read_list.append(error_read_list_i[j])
@@ -695,7 +705,7 @@ def simulate_results_for_iteration(input_data, haplotypes, haplotype_specific_fa
             hist_all, hist_err, bins = (hist_all_i, hist_err_i, bins_i)
 
         # Clean up after ourselves.
-        os.remove(simulated_fastq)
+        #os.remove(simulated_fastq)
         #input_data._purge_alignment_files()
         sys.stderr.write("Done.\n")
         
@@ -715,7 +725,7 @@ def simulate_data(haplotype_specific_fasta,
                   length_sd = 20000,
                   accuracy_min = 0.01,
                   accuracy_max = 1.00,
-                  accuracy_mean = 0.80,
+                  accuracy_mean = 0.98,
                   quiet = False, silent = False,
                   no_sim = False):
     """
@@ -745,7 +755,7 @@ def simulate_data(haplotype_specific_fasta,
     return simulated_fastq
 
 
-def parse_simulated_data(input_data, args):
+def parse_simulated_data(input_data, output_streams, args, combined_output_bam):
     """
     Takes simulated alighments and parses out log-likelihood ratios and associated error counts.
     """
@@ -757,6 +767,27 @@ def parse_simulated_data(input_data, args):
         # To-Do: Work in ability to select/ignore specific samples
         for alignment in phasable_sample:
             phased_read = PhasedRead(alignment, vcf_file = phasable_sample.vcf_file_path, sample = 'HG001', evaluate_true_alignment = True)
+            # In this version, we want to retain phasing decisions for further analysis. As such,
+            # we will write all reads to an output file as they are phased.
+
+            # Make sure all tags are properly set in the output.
+            phased_read.aligned_segment.set_tag(tag = 'ER', value = str(phased_read.phasing_error_rate), value_type='Z', replace=True)
+            if phased_read.is_phased:
+                if (args.log_likelihood_threshold >= 0 and phased_read.log_likelihood_ratio >= args.log_likelihood_threshold) or phased_read.phasing_error_rate <= args.error_rate_threshold:
+                    # Phased read passing the error rate/score threshold.
+                    phased_read.aligned_segment.set_tag(tag = 'HP', value = str(phased_read.phase), value_type='Z', replace=True)
+                else:
+                    # Phasing score does not pass threshold. Label as unphased.
+                    phased_read.aligned_segment.set_tag(tag = 'HP', value = "Unphased", value_type='Z', replace=True)
+            elif phased_read.is_Unphased:
+                phased_read.aligned_segment.set_tag(tag = 'HP', value = "Unphased", value_type='Z', replace=True)
+            else: # Nonphasable
+                phased_read.aligned_segment.set_tag(tag = 'HP', value = "nonphasable", value_type='Z', replace=True)
+
+            # Print the read to disk.
+            write_combined_bam_output(phased_read, combined_output_bam, args)
+                
+            # Resume normal processing of simulated read.
             if phased_read.alignment_is_mapped and phased_read.matches_true_alignment and phased_read.is_phased and int(phased_read.aligned_segment.get_tag('HS')) > 1:
                 log_ratios.append(phased_read.log_likelihood_ratio)
                 is_phased_correctly.append(phased_read.is_phased_correctly)
@@ -1078,7 +1109,7 @@ def getArgs() -> object:
     phasability_parser.set_defaults(func = phasability)
     """
 
-    """
+    
     # This mode is disabled in the 1.X releases, published with the 2022 manuscript.
     ##################################################################################################################
     ############## error_analysis Mode Arguments #####################################################################
@@ -1224,7 +1255,7 @@ def getArgs() -> object:
     )
     
     error_analysis_parser.set_defaults(func = error_analysis)
-    """
+    
     
     #####################################################################################################################
     ############## Parse arguments ######################################################################################    

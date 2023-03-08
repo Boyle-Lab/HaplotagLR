@@ -14,7 +14,7 @@ def simulate_reads_pbsim2(
         difference_ratio: str = '23:31:46', length_mean: int = 20000,
         length_max: int = 1000000, length_min: int = 100,
         length_sd: int = 15000, accuracy_min: float = 0.01,
-        accuracy_max: float = 1.00, accuracy_mean: float = 0.80,
+        accuracy_max: float = 1.00, accuracy_mean: float = 0.98,
         prefix: str = None, id_prefix: str = 'S', output_directory: str = None, sample: str = None,
         haplotype: int = None, quiet = False, silent = False, no_sim = False
         ) -> str:
