@@ -529,6 +529,12 @@ def error_analysis(args):
             args,
             combined_output_bam
         )
+
+        """
+        # We will only use this mode to simulate and align reads, not for scoroin/phasing.
+        # Phasing and error accounting will be carried out separately for both LRphase and
+        # WhatsHap.
+
         for j in range(len(error_lr_list_i)):
             error_lr_list.append(error_lr_list_i[j])
             error_read_list.append(error_read_list_i[j])
@@ -586,15 +592,16 @@ def error_analysis(args):
                         err_read.log_likelihood_ratio,
                         err_read.phasing_error_rate
                     ))
-            
+        """
         # The rest of the kludge for using args.simulation_min_err_obs to control simulations:
         if args.simulation_min_err_obs > 0 and len(error_lr_list) >= args.simulation_min_err_obs:
             break
 
-    # Close the per-iteration stats file if necessary.
+    # Close the per-iteration stats file if necessary.    
     if args.store_simulation_data_for_iterations:
         per_iteration_stats_file.close()
-            
+
+    """
     sys.stderr.write("\n################ Fitting Error Model ################\n")
     with open(args.output_directory_path + "/simulation_error_stats.tsv", "w") as outfile:
         write_simulation_stats(hist_all, hist_err, bins, outfile)
@@ -610,7 +617,7 @@ def error_analysis(args):
 
     with open(args.output_directory_path + "/simulation_error_model_output.txt", 'w') as outfile:
         outfile.write("Total errors in simulations: %d\nMin log-likelihood-ratio for errors: %.3f\nMax log-likelihood ratio for errors: %.3f\nPowerlaw fitting method: %s\nNumber of observations used in powerlaw fitting: %d\nFitted powerlaw alpha: %.5f\nFitted powerlaw xmin: %.5f\nCorrected powerlaw xmin: %.5f\nFitted powerlaw minimum xmin distance (D): %.3f\nFitted powerlaw sigma: %.5f\n" % (len(error_lr_list), min(error_lr_list), max(error_lr_list), pl_fit.fit_method, pl_fit.n, pl_fit.alpha, pl_fit.xmin, corrected_xmin, pl_fit.D, pl_fit.sigma) )
-
+    """
     combined_output_bam.close()
     
     runtime = time.time() - start_time
@@ -678,7 +685,7 @@ def simulate_results_for_iteration(input_data, haplotypes, haplotype_specific_fa
             input_data.add_reads(simulated_fastq,
                                  sample = args.one_sample,
                                  reference_sequence_input = args.reference_genome,
-                                 clobber=True, quiet = args.quiet_mode,
+                                 clobber=False, quiet = args.quiet_mode,
                                  silent = args.silent_mode,
                                  threads = args.threads,
                                  no_align = args.phase_only
@@ -686,7 +693,9 @@ def simulate_results_for_iteration(input_data, haplotypes, haplotype_specific_fa
         except Exception as e:
             sys.stderr.write("%s\n" % e)
             continue
-        
+        """
+        # We will phase reads separately in phasing mode.
+
         # Extract log-likelihood ratios and phasing results for properly-mapped reads with >= min_het_sites
         sys.stderr.write("Phasing simulated reads...\n")
         hist_all_i, hist_err_i, bins_i, error_lr_list_i, error_read_list_i = parse_simulated_data(input_data, args, combined_output_bam)
@@ -708,6 +717,7 @@ def simulate_results_for_iteration(input_data, haplotypes, haplotype_specific_fa
         #os.remove(simulated_fastq)
         #input_data._purge_alignment_files()
         sys.stderr.write("Done.\n")
+        """
         
     return hist_all, hist_err, bins, error_lr_list, error_read_list
 
@@ -773,12 +783,7 @@ def parse_simulated_data(input_data, args, combined_output_bam):
             # Make sure all tags are properly set in the output.
             phased_read.aligned_segment.set_tag(tag = 'ER', value = str(phased_read.phasing_error_rate), value_type='Z', replace=True)
             if phased_read.is_phased:
-                if (args.log_likelihood_threshold >= 0 and phased_read.log_likelihood_ratio >= args.log_likelihood_threshold) or phased_read.phasing_error_rate <= args.error_rate_threshold:
-                    # Phased read passing the error rate/score threshold.
-                    phased_read.aligned_segment.set_tag(tag = 'HP', value = str(phased_read.phase), value_type='Z', replace=True)
-                else:
-                    # Phasing score does not pass threshold. Label as unphased.
-                    phased_read.aligned_segment.set_tag(tag = 'HP', value = "Unphased", value_type='Z', replace=True)
+                phased_read.aligned_segment.set_tag(tag = 'HP', value = str(phased_read.phase), value_type='Z', replace=True)
             elif phased_read.is_Unphased:
                 phased_read.aligned_segment.set_tag(tag = 'HP', value = "Unphased", value_type='Z', replace=True)
             else: # Nonphasable

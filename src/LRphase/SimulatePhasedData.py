@@ -106,6 +106,8 @@ def simulate_reads_pbsim2(
                    '--id-prefix', str(id_prefix),
                    str(reference_genome_path)]
 
+    sys.stderr.write("pbsim2 command: %s\n" % (' ' .join(pbsim2_args)))
+    
     if silent:
         subprocess.run(pbsim2_args, check = True, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
     elif quiet:
@@ -172,7 +174,7 @@ def extract_true_alignments_from_pbsim2_maf(reference_genome_index_path, pbsim2_
             elif state == 0 and line[0] == 'a':
                 state = 1
             elif state == 1 and line[0] == 's':
-                reg = [line[2], line[2]+line[3]]
+                reg = [line[2], str(int(line[2])+int(line[3]))]
                 state = 2
             elif state == 2 and line[0] == 's':
                 m = re.match('^S\d+_\d+', line[1])
