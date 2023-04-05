@@ -6,7 +6,6 @@ import pysam
 from LRphase import SimulatePhasedData
 import pyliftover
 
-
 class PhasableSample:
     """
 
@@ -44,7 +43,6 @@ class PhasableSample:
         self.RG_ID_dict = RG_ID_dict
         self.use_RG_tag = {}
         
-        #sys.stderr.write("%s\n" %(alignment_file_paths))        
         for alignment_file_path in alignment_file_paths:
             self.alignment_file_paths.append(str(alignment_file_path))
             self.use_RG_tag[str(alignment_file_path)] = alignment_file_paths[str(alignment_file_path)]
@@ -52,9 +50,10 @@ class PhasableSample:
         if bam_header:
             self.bam_header = bam_header
         else:
-            # Take the header from an alignment file.
+            # Take the header from an alignment file, if possible.
             success = False
             for i in range(len(self.alignment_file_paths)):
+                #sys.stderr.write("%s\n" % (pysam.AlignmentFile(self.alignment_file_paths[i], 'rb').header))
                 try:
                     self.bam_header = pysam.AlignmentFile(self.alignment_file_paths[i], 'rb').header
                 except:
@@ -62,7 +61,8 @@ class PhasableSample:
                 success = True
                 break
             if not success:
-                raise Exception("ERROR: None of the bam files contain a header and none given. Exiting!")
+                # Use an empty header.
+                self.bam_header = { 'HD': {'VN': '1.0'} }
 
         self.reference_sequence_names = reference_sequence_names
         self.reference_sequence_paths = reference_sequence_paths
