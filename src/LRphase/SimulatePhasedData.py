@@ -14,7 +14,7 @@ def simulate_reads_pbsim2(
         difference_ratio: str = '23:31:46', length_mean: int = 20000,
         length_max: int = 1000000, length_min: int = 100,
         length_sd: int = 15000, accuracy_min: float = 0.01,
-        accuracy_max: float = 1.00, accuracy_mean: float = 0.80,
+        accuracy_max: float = 1.00, accuracy_mean: float = 0.98,
         prefix: str = None, id_prefix: str = 'S', output_directory: str = None, sample: str = None,
         haplotype: int = None, quiet = False, silent = False, no_sim = False
         ) -> str:
@@ -106,6 +106,8 @@ def simulate_reads_pbsim2(
                    '--id-prefix', str(id_prefix),
                    str(reference_genome_path)]
 
+    sys.stderr.write("pbsim2 command: %s\n" % (' ' .join(pbsim2_args)))
+    
     if silent:
         subprocess.run(pbsim2_args, check = True, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
     elif quiet:
@@ -172,7 +174,7 @@ def extract_true_alignments_from_pbsim2_maf(reference_genome_index_path, pbsim2_
             elif state == 0 and line[0] == 'a':
                 state = 1
             elif state == 1 and line[0] == 's':
-                reg = [line[2], line[2]+line[3]]
+                reg = [line[2], str(int(line[2])+int(line[3]))]
                 state = 2
             elif state == 2 and line[0] == 's':
                 m = re.match('^S\d+_\d+', line[1])
