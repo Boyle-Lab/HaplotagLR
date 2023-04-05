@@ -151,11 +151,13 @@ def trim_phased_reads_to_fdr_neg_binom(phased_reads_list, FDR_threshold, output_
     expected number of phasing errors, and reassign the N𝜀* (1-FDR)
     lowest-scoring reads as “unphased.”
     """
-    p = 1 - (get_average_seq_error_rate(phased_reads_list) / 2)
+    r = get_average_seq_error_rate(phased_reads_list)
+    p = 1 - (r / 2)
     n = len(phased_reads_list)
     E = get_expected_error_count_neg_binom(n, p)
     e = round(E * (1-FDR_threshold))
     #sys.stderr.write('p: %.5f, n: %d, E: %d, e: %d, FDR: %.5f\n' % (p, n, E, e, FDR_threshold))
+    sys.stderr.write('Negative-binomial error distribution params:\nAvg. Seq. Error Rate: %.5f, Neg. Binom. p: %.5f, phased read count: %d, estimated error count: %d, FDR: %.5f\n' % (r, p, n, e, FDR_threshold))
     sorted_reads_list = sort_reads_list(phased_reads_list)
     sys.stderr.write('Reassigning %d phased reads with the lowest log-likelihood ratios as Unphased to control FDR at %.2f...\n' % (e, FDR_threshold)) 
     for i, phased_read in enumerate(sorted_reads_list):
