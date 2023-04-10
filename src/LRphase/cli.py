@@ -144,7 +144,7 @@ def trim_phased_reads_to_fdr_neg_binom(phased_reads_list, FDR_threshold, output_
     Given a list of phased reads, control FDR at the given level
     by calculating the expected number of phasing errors based on
     a negative binomial model. Phasing decisions can be considered 
-    Bernoulli trials with Psuccess = 1-(𝜀/2). Thus, the error 
+    Bernoulli trials with Psuccess = 1-(𝜀/3). Thus, the error 
     distribution may be modeled as negative binomial with N = the 
     number of phaseable reads. To control the error rate at any 
     given FDR, we use the mean of this distribution, N𝜀, as the 
@@ -152,7 +152,7 @@ def trim_phased_reads_to_fdr_neg_binom(phased_reads_list, FDR_threshold, output_
     lowest-scoring reads as “unphased.”
     """
     r = get_average_seq_error_rate(phased_reads_list)
-    p = 1 - (r / 2)
+    p = 1 - (r / 3)
     n = len(phased_reads_list)
     E = get_expected_error_count_neg_binom(n, p)
     e = round(E * (1-FDR_threshold))
