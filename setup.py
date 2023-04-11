@@ -78,7 +78,7 @@ def main():
             'biopython>=1.78',
             'pyliftover>=0.4',
             'powerlaw>=1.4.6',
-            'numpy>=1.20.1'
+            'numpy>=1.20.1',
             'requests>=2.26.0'
         ],
         extras_require = {
