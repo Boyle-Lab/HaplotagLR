@@ -920,8 +920,8 @@ def getArgs() -> object:
         '-F', '--FDR_threshold',
         type = float,
         required = False,
-        default = 0.05,
-        help = 'Control the false discovery rate at the given value using a negative-binomial estimate of the number of phasing errors (N) given the average per-base sequencing error rate observed among all phaseable reads. Phased reads are sorted by their observed log-likelihood ratios and the bottom N*(1-FDR) reads will be reassigned to the "Unphased" set. Set this to zero to skip this step and return all phasing predictions.'
+        default = 0,
+        help = 'Control the false discovery rate at the given value using a negative-binomial estimate of the number of phasing errors (N) given the average per-base sequencing error rate observed among all phaseable reads. Phased reads are sorted by their observed log-likelihood ratios and the bottom N*(1-FDR) reads will be reassigned to the "Unphased" set. Set this to zero to skip this step and return all phasing predictions. Default = 0.'
     )
 
     phasing_parser_stats_error.add_argument(
