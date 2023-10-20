@@ -67,10 +67,12 @@ def _sample_to_alignment_files(sample_to_vcf_file_dict: dict, RG_ID_dict: dict) 
     """
     sample_to_alignment_files = {}
     for sample in sample_to_vcf_file_dict:
-        #sys.stderr.write("%s\n" % sample)
+        #sys.stderr.write("70: %s\n" % sample)
         sample_to_alignment_files[sample] = {}
         for file in RG_ID_dict.keys():
-            #sys.stderr.write("%s\n" % file)
+            #sys.stderr.write("73: %s: %s\n\t%s\n\n" % (file, RG_ID_dict, RG_ID_dict[file]))
+            #if RG_ID_dict[file] is None:
+            #    sample_to_alignment_files[sample][] = file
             if len([file for key in RG_ID_dict[file].keys() if RG_ID_dict[file][key]['SM'] == sample]) > 0:
                 #sys.stderr.write("%s\n" % file)
                 for pair in [{
@@ -211,11 +213,11 @@ def _unique_RG_IDs_from_RG_tags(RG_ID_dict: dict, unique_RG_IDs: dict, alignment
         alignment_file_path (str):
     """
     # Check integrity of alignment file
-    cmd = "samtools quickcheck " + long_reads_alignment_path
+    cmd = "samtools quickcheck " + alignment_file_path
     exit_status = os.system(cmd)
     if exit_status != 0:
         # Bam file could not be read.
-        raise Exception("\nERROR: %s could not be read. This is likely due to a file that is incomplete or corrupt. Exiting. (IDP_unique_RG_217)\n" % (long_reads_alignment_path))
+        raise Exception("\nERROR: %s could not be read. This is likely due to a file that is incomplete or corrupt. Exiting. (IDP_unique_RG_217)\n" % (alignment_file_path))
         #pass
     
     with pysam.AlignmentFile(alignment_file_path, 'rb') as bam_file:
@@ -225,13 +227,18 @@ def _unique_RG_IDs_from_RG_tags(RG_ID_dict: dict, unique_RG_IDs: dict, alignment
     else:
         RG_ID_dict[str(alignment_file_path)] = {}
         for RG_tag in RG_tags:
+            try:
+                SM_str = str(RG_tag['SM'])
+            except:
+                SM_str = None
             RG_ID_dict[str(alignment_file_path)][str(RG_tag['ID'])] = {}
             RG_ID_dict[str(alignment_file_path)][str(RG_tag['ID'])]['DS'] = str(RG_tag['DS'])
-            RG_ID_dict[str(alignment_file_path)][str(RG_tag['ID'])]['SM'] = str(RG_tag['SM'])
+            # TO-DO: RG tags don't always have an SM field. This will crash the program in those cases!
+            RG_ID_dict[str(alignment_file_path)][str(RG_tag['ID'])]['SM'] = SM_str
             RG_ID_dict[str(alignment_file_path)][str(RG_tag['ID'])]['RG_tags'] = True
             if str(RG_tag['ID']) in list(unique_RG_IDs):
                 if unique_RG_IDs[str(RG_tag['ID'])]['DS'] == str(RG_tag['DS']) and unique_RG_IDs[str(RG_tag['ID'])][
-                    'SM'] == str(RG_tag['SM']):
+                    'SM'] == SM_str:
                     RG_ID_dict[str(alignment_file_path)][str(RG_tag['ID'])]['outputID'] = str(RG_tag['ID'])
                 else:
                     not_unique = True
@@ -242,50 +249,73 @@ def _unique_RG_IDs_from_RG_tags(RG_ID_dict: dict, unique_RG_IDs: dict, alignment
                             RG_ID_dict[str(alignment_file_path)][str(RG_tag['ID'])]['outputID'] = str(newID)
                             unique_RG_IDs[str(newID)] = {}
                             unique_RG_IDs[str(newID)]['DS'] = str(RG_tag['DS'])
-                            unique_RG_IDs[str(newID)]['SM'] = str(RG_tag['SM'])
+                            unique_RG_IDs[str(newID)]['SM'] = SM_str
                             not_unique = False
                         i += 1
             else:
                 RG_ID_dict[str(alignment_file_path)][str(RG_tag['ID'])]['outputID'] = str(RG_tag['ID'])
                 unique_RG_IDs[str(RG_tag['ID'])] = {}
                 unique_RG_IDs[str(RG_tag['ID'])]['DS'] = str(RG_tag['DS'])
-                unique_RG_IDs[str(RG_tag['ID'])]['SM'] = str(RG_tag['SM'])
+                unique_RG_IDs[str(RG_tag['ID'])]['SM'] = SM_str
     return RG_ID_dict, unique_RG_IDs
 
 
-def _extract_RG_info_from_long_read_input(long_read_input: List[str]) -> object:#tuple[Union[Union[str, bytes], Any], object, Optional[Any], Optional[Any], Optional[Any]]:
+def _extract_RG_info_from_long_read_input(long_read_input: str) -> object:
     """
+    This should extract RG tags from the given alignment file.
 
     Returns:
         object:
     """
-    long_read_input_path = os.path.abspath(long_read_input[0])
-    if len(long_read_input) == 1:
-        input_ID = None
-        input_sample = None
-        input_sample_description = None
-        input_reference_sequence_input = None
-    elif len(long_read_input) == 2:
-        input_ID = long_read_input[1]
-        input_sample = None
-        input_sample_description = None
-        input_reference_sequence_input = None
-    elif len(long_read_input) == 3:
-        input_ID = long_read_input[1]
-        input_sample = long_read_input[2]
-        input_sample_description = None
-        input_reference_sequence_input = None
-    elif len(long_read_input) == 4:
-        input_ID = long_read_input[1]
-        input_sample = long_read_input[2]
-        input_sample_description = long_read_input[3]
-        input_reference_sequence_input = None
-    elif len(long_read_input) >= 5:
-        input_ID: object = long_read_input[1]
-        input_sample = long_read_input[2]
-        input_sample_description = long_read_input[3]
-        input_reference_sequence_input = long_read_input[4]
-    return long_read_input_path, input_ID, input_sample, input_sample_description, input_reference_sequence_input
+    alignment_file_path = os.path.abspath(long_read_input)
+    #sys.stderr.write("%s\n" % (alignment_file_path))
+
+    # All default to None
+    input_ID = None
+    input_sample = None
+    input_sample_description = None
+    input_reference_sequence_input = None
+
+    # Check integrity of alignment file
+    cmd = "samtools quickcheck " + alignment_file_path
+    exit_status = os.system(cmd)
+    if exit_status != 0:
+        # Likely a fastq file was given as input. We will attempt to get the sample name
+        # from the VCF, if not given with args.one_sample.
+        sys.stderr.write("INFO: %s is not an alignment file.\n" % (alignment_file_path))
+        return alignment_file_path, input_ID, input_sample, input_sample_description, input_reference_sequence_input    
+    
+    # Get RG headers from the alignment file.
+    with pysam.AlignmentFile(alignment_file_path, 'rb') as bam_file:
+        RG_tags = bam_file.header.get('RG')
+    if RG_tags is None:
+        # No RG tags are present in the bam header, so no sample names given in the BAM,
+        # therefor, we will attempt to get sample names from the VCF.        
+        sys.stderr.write("INFO: %s contains no RG tags and none given with -s. We will attempt to find sample name(s) in the VCF file.\n" % (long_read_input))
+        pass
+    else:
+        #sys.stderr.write("InputData.py 300: %s\n" % RG_tags)
+        #sys.stderr.write("InputData.py 301: %s\n" % long_read_input)
+        sys.stderr.write("INFO: %s is a valid alignment file including %d RG tags.\n" % (alignment_file_path, len(RG_tags)))
+        samples = []
+        for RG_tag in RG_tags:
+            if 'SM' in RG_tag.keys():
+                #sys.stderr.write("%s\n" % (RG_tag['SM']))
+                samples.append(RG_tag['SM'])
+
+        if len(samples) == 0:
+            sys.stderr.write("INFO: RG tags in %s do not include sample name(s) and none given with -s. We will attempt to find sample name(s) in the VCF file.\n" % (long_read_input))
+        #input_ID = long_read_input[1]
+        #input_sample = long_read_input[2]
+        #input_sample_description = long_read_input[3]
+        #input_reference_sequence_input = None
+        #if len(long_read_input) >= 5:
+        #    input_ID: object = long_read_input[1]
+        #    input_sample = long_read_input[2]
+        #    input_sample_description = long_read_input[3]
+        #    input_reference_sequence_input = long_read_input[4]
+    
+    return alignment_file_path, input_ID, input_sample, input_sample_description, input_reference_sequence_input
 
 
 def _sample_to_vcf_file_dict(vcf_file_paths):
@@ -299,60 +329,6 @@ def _sample_to_vcf_file_dict(vcf_file_paths):
             sample_to_vcf_file_dict[str(sample)] = vcf_file_path
         vcf_file.close() # Clean up after ourselves!
     return sample_to_vcf_file_dict
-
-
-def _compile_read_groups(
-        alignment_file_path, sample, ID, sample_description, RG_ID_dict, unique_RG_IDs, ignore_samples
-        ):
-    if ignore_samples:
-        RG_ID_dict[str(alignment_file_path)] = 'ignore_samples'
-    else:
-        # Check integrity of alignment file
-        cmd = "samtools quickcheck " + alignment_file_path
-        exit_status = os.system(cmd)
-        if exit_status != 0:
-            # Bam file could not be read.
-            raise Exception("\nERROR: %s could not be read. This is likely due to a file that is incomplete or corrupt. Exiting. (IDP_compile_read_groups_314)\n" % (alignment_file_path))
-            #pass
-        
-        with pysam.AlignmentFile(alignment_file_path, 'rb') as bam_file:
-            RG_tags = bam_file.header.get('RG')
-        if sample is not None:
-            RG_ID_dict[str(alignment_file_path)] = {}
-            if ID is not None:
-                RG_ID_dict[str(alignment_file_path)][str(ID)] = {}
-                RG_ID_dict[str(alignment_file_path)][str(ID)]['SM'] = str(sample)
-                RG_ID_dict[str(alignment_file_path)][str(ID)]['outputID'] = str(ID)
-                RG_ID_dict[str(alignment_file_path)][str(ID)]['RG_tags'] = False
-                if sample_description is not None:
-                    RG_ID_dict[str(alignment_file_path)][str(ID)]['DS'] = str(sample_description)
-                else:
-                    RG_ID_dict[str(alignment_file_path)][str(ID)]['DS'] = str(
-                            'LRphase_input_file_' + str(alignment_file_path)
-                            )
-            else:
-                ID = '0' + str(random.randint(1, 10000))
-                RG_ID_dict[str(alignment_file_path)][str(ID)] = {}
-                RG_ID_dict[str(alignment_file_path)][str(ID)]['SM'] = str(sample)
-                RG_ID_dict[str(alignment_file_path)][str(ID)]['outputID'] = str(ID)
-                RG_ID_dict[str(alignment_file_path)][str(ID)]['RG_tags'] = False
-                if sample_description is not None:
-                    RG_ID_dict[str(alignment_file_path)][str(ID)]['DS'] = str(sample_description)
-                else:
-                    RG_ID_dict[str(alignment_file_path)][str(ID)]['DS'] = str(
-                            'LRphase_input_file_' + str(alignment_file_path)
-                            )
-            if str(ID) not in unique_RG_IDs:
-                unique_RG_IDs[str(ID)] = {}
-                unique_RG_IDs[str(ID)]['DS'] = str(sample_description)
-                unique_RG_IDs[str(ID)]['SM'] = str(sample)
-        elif RG_tags is not None:
-            RG_ID_dict, unique_RG_IDs = _unique_RG_IDs_from_RG_tags(
-                    RG_ID_dict, unique_RG_IDs, alignment_file_path
-                    )
-        else:
-            sys.stderr.write("%s Has No RG tags and was not input with sample information. Reads in this file will not be processed. Either re-input this read file with sample information or resubmit with ignore_samples option.\n" % alignment_file_path)
-    return RG_ID_dict, unique_RG_IDs
 
 
 class InputData:
@@ -370,7 +346,7 @@ class InputData:
         urls_found = False
     
     def __init__(
-            self, output_directory_path: str = None, vcf_file_input: str = None, long_read_input: object = None,
+            self, output_directory_path: str = None, vcf_file_input: str = None, long_read_input: str = None,
             reference_sequence_input: str = None, sample: str = None, ID: str = None,
             sample_description: str = None,
             ignore_phase_sets: bool = None, ignore_samples: bool = None, download_from_urls: bool = False,
@@ -422,11 +398,20 @@ class InputData:
         self.reference_sequence_input = reference_sequence_input
         self.vcf_file_input = vcf_file_input
         self.long_read_input = long_read_input
+
+        # First assignment from args.one_sample
         self.sample = sample
+
+        # ID needs to come from somewhere too, but we usually won't have it until we've
+        # peeked inside the BAM!
         self.ID = ID
+        
         self.sample_description = sample_description
+
         self.ignore_phase_sets = ignore_phase_sets
         self.ignore_samples = ignore_samples
+        #sys.stderr.write("413: %s, %s\n" % (ignore_samples, self.ignore_samples))
+        
         self.download_from_urls = download_from_urls
         self.reference_sequence_input_assembly = reference_sequence_input_assembly
 
@@ -437,21 +422,28 @@ class InputData:
         # To store log-likelihood ratios and associated error rates from simulations.
         self.lr_err_rate_dict = {}
         
-        if not self.reference_sequence_input_assembly is None:
+        if self.reference_sequence_input_assembly is None:
             sys.stderr.write('\n############## Preparing reference sequence directory ##############\n')
             _prepare_output_directory(
                     self.output_directory + '/reference_sequences/' + str(reference_sequence_input_assembly)
                     )
 
-        if not self.long_read_input is None:
-            # self.long_read_input = long_read_input
-            long_read_input_path, input_ID, input_sample, input_sample_description, input_reference_sequence_input = _extract_RG_info_from_long_read_input(long_read_input)
-            if input_reference_sequence_input is None:
-                input_reference_sequence_input = self.reference_sequence_input
-            self.add_reads(self.long_read_input, input_sample, input_ID,
-                           input_sample_description, input_reference_sequence_input)
+        # This may not be necessary if we're not calling add_reads here.
+        if self.long_read_input is not None: # This is the alignment/fastq file. Attempt to extract read-group data
+            pass
         
-    
+            #long_read_input_path, input_ID, input_sample, input_sample_description, input_reference_sequence_input = _extract_RG_info_from_long_read_input(long_read_input)
+            #sys.stderr.write("_extract_RG_info_from_long_read_input returned: %s, %s, %s, %s, %s\n" % (long_read_input_path, input_ID, input_sample, input_sample_description, input_reference_sequence_input))
+            #if input_reference_sequence_input is None:
+            #    input_reference_sequence_input = self.reference_sequence_input
+            # So at this point we still won't have the sample name (input_sample) yet if there are
+            # no RG tags and nothing was given for args.one_sample. self._compile_read_groups is
+            # called from  within add_reads.
+            #self.add_reads(self.long_read_input, sample=input_sample, ID=input_ID,
+            #               sample_description=input_sample_description,
+            #               reference_sequence_input=input_reference_sequence_input)
+        
+  
     def _download_file(self, url, output_directory = None):
         if output_directory is None:
             local_filename = self.output_directory + '/' + url.split('/')[-1]
@@ -564,15 +556,19 @@ class InputData:
         # Check vcf_input_file for proper format and indexing
         vcf_file_path = self._prepare_vcf_file(self.output_directory, vcf_file_input)
 
-        # Check for phasing information
+        # Check for phase sets
         if pysam.VariantFile(vcf_file_path).header.formats.keys().count('PS') == 0:
             ignore_phase_sets = True
             sys.stderr.write("This VCF file does not have the PS subfield. Phase sets will be ignored and all phased variants on the same chromosome (vcf contig) will be considered to be one contiguous haploblock " % vcf_file_path)
 
         # Append the VCF file path to self.vcf_files[], etc.
         self.vcf_files.append({vcf_file_path:ignore_phase_sets})
+        #sys.stderr.write("%s\n" % (self.vcf_files))
         self.sample_to_vcf_file_dict = _sample_to_vcf_file_dict(self.vcf_files)
+        #sys.stderr.write("612: %s\n" % (self.sample_to_vcf_file_dict))
+        #sys.stderr.write("613: %s\n" % (self.RG_ID_dict))
         self.sample_to_alignment_files = _sample_to_alignment_files(self.sample_to_vcf_file_dict, self.RG_ID_dict)
+        #sys.stderr.write("%s\n" % (self.sample_to_alignment_files))
         try:
             self._sample_to_reference_sequences_dict()
         except Exception as e:
@@ -693,7 +689,10 @@ class InputData:
                     is_sorted_bam = no_align
                 )
                 #sys.stderr.write("%s; %s\n" % (sorted_bam_file_path, combined_long_read_fastq_path))
-                self.RG_ID_dict, self.unique_RG_IDs = _compile_read_groups(
+                if sorted_bam_file_path and sample is None:
+                    samples = self._get_samples_from_bam_header(sorted_bam_file_path)
+                #sys.stderr.write("691: %s\n" % (self.ignore_samples))
+                self.RG_ID_dict, self.unique_RG_IDs = self._compile_read_groups(
                     sorted_bam_file_path[0], sample, ID, sample_description,
                     self.RG_ID_dict, self.unique_RG_IDs,
                     self.ignore_samples
@@ -771,6 +770,7 @@ class InputData:
             for reference_sequence in aln_file.header['SQ']:
                 self.alignment_file_to_reference_sequences_dict[sam_file_path].append(reference_sequence)
             aln_file.close()
+        #sys.stderr.write("%s\n" % (self.alignment_file_to_reference_sequences_dict))
         for sample in self.sample_to_vcf_file_dict:
             for sam_file_path in self.alignment_file_to_reference_sequences_dict:
                 if sam_file_path in self.sample_to_alignment_files[str(sample)]:
@@ -855,7 +855,7 @@ class InputData:
                             self.sample_to_RG_header[sample].append(RG_tag)
                     aln_file.close()
 
-    
+
     def _parse_long_reads_input(self, long_read_input: object, output_directory: str, threads: int = 1, is_sorted_bam = False) -> object:
         """
 
@@ -892,7 +892,7 @@ class InputData:
             raise OSError("File not found")
         
         elif os.path.isdir(long_reads_alignment_path):
-            sys.stderr.write('Directory was given as input for read files. Processing all files in %s.\n' % long_reads_alignment_path)
+            sys.stderrwrite('Directory was given as input for read files. Processing all files in %s.\n' % long_reads_alignment_path)
             for aln_file in os.listdir(long_reads_alignment_path):
                 qualified_aln_file = '%s/%s' % (os.path.abspath(long_reads_alignment_path), aln_file)
                 if os.path.isfile(qualified_aln_file):
@@ -979,7 +979,7 @@ class InputData:
             # Check for a tabix index and create one if not found.
             vcf_file_index_path = vcf_file_path + '.tbi'    
             if os.path.isfile(vcf_file_index_path):
-                sys.stderr.write('Found %s as an index for vcf file' % vcf_file_index_path)
+                sys.stderr.write('Found %s as an index for vcf file.\n' % vcf_file_index_path)
             else:
                 sys.stderr.write('%s is a valid .vcf file in bgzip (.vcf.gz) format but an index was not found. Indexing with tabix now.\n' % vcf_file_input)
                 pysam.tabix_index(vcf_file_path, preset = 'vcf', force = True)
@@ -997,9 +997,11 @@ class InputData:
         return vcf_file_path
 
     
-    def _compile_read_groups(
-            self, alignment_file_path, sample, ID, sample_description, RG_ID_dict, unique_RG_IDs, ignore_samples
-    ):
+    def _compile_read_groups(self, alignment_file_path, sample, ID, sample_description, RG_ID_dict, unique_RG_IDs, ignore_samples):
+        """
+        Builds RG_ID_dict, which is used to relate read groups (in RG tags) and their associated sample
+        names and IDs, which should correspond to specific sample columns in the VCF input.
+        """
         if ignore_samples:
             RG_ID_dict[str(alignment_file_path)] = 'ignore_samples'
         else:
@@ -1071,7 +1073,35 @@ class InputData:
                             self.lr_err_rate_dict[lr] = 1
         return
 
-        
+    def _get_samples_from_bam_header(self, bam_file_paths):
+        """
+        Get sample names from all RG tags within the BAM file header.
+        """
+        samples = []
+        for bam_file_path in bam_file_paths:
+            bam_file = pysam.AlignmentFile(bam_file_path)
+            #sys.stderr.write("%s\n" % bam_file.header['RG'])
+            if 'RG' in bam_file.header.keys():
+                for RG_tag in bam_file.header['RG']:
+                    #sys.stderr.write("%s\n" % RG_tag.keys())
+                    if 'SM' in RG_tag.keys():
+                        samples.append(RG_tag['SM'])
+            else:
+                pass
+        #sys.stderr.write("%s\n" % (samples))
+        return samples
+
+    def _get_samples_from_vcf(self, vcf_file_paths):
+        """
+        Get sample names from VCF columns.
+        """
+        samples = []
+        for vcf_file_path in vcf_file_paths:
+            variant_file = pysam.VariantFile(vcf_file_path)
+            for sample in list(variant_file.header.samples):
+                samples.append(sample)
+        return samples
+
 
 def _sort_vcf_file(vcf_file_input: object, vcf_file_output: object = None) -> object:
     """

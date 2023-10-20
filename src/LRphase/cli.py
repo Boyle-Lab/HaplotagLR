@@ -28,10 +28,13 @@ def phasing(args):
     """
     sys.stderr.write('\nAnalyzing inputs using phasing mode...\n\n')
     #sys.stderr.write("%s\n" % args)
+    
     # Input data initialization currently ignores much of the content of args. May be a good idea to fix this.
     # TO-DO: Need to actually handle VCF samples properly instead of relying on args.one_sample.
+    
     input_data = InputData(args.output_directory_name,
                            sample = args.one_sample,
+                           long_read_input = args.long_read_inputs,
                            ignore_samples = args.ignore_samples,
                            reference_sequence_input = args.reference_genome,
                            reference_sequence_input_assembly = args.reference_assembly,
@@ -39,19 +42,70 @@ def phasing(args):
                            quiet = args.quiet_mode,
                            silent = args.silent_mode
     )
-    input_data.add_haplotype_information(args.vcf_file_name)
+    sys.stderr.write("INFO: Finished initializing input_data object.\n")
+
+    # Add the reference sequence
     input_data.add_reference_sequence(args.reference_genome,
                                       reference_sequence_input_assembly = args.reference_assembly,
                                       output_directory = args.output_directory_name)
+
+    """
+    So this is where things go off the rails with Greg's data structures to coordinate RG tags,
+    sample names, and file names for VCF and BAM inputs. Sample name, ID, etc., cannot be obtained
+    directly from the BAM or VCF files because of circular references among various function calls
+    used to initiate and populate the various data structures within the InputData object. Likely,
+    the best thing to do is to start from scratch with a single-VCF file, single-BAM file solution,
+    since much of the complexity stems from the attempt to map these tags across multiple files.
+
+    The primary goal of restructuring the BAM/VCF ingestion process above is to eliminate
+    the need for the user to supply a sample name with args.one_sample by supplying
+    reasonable defaults in cases where there are and are not easily-guess values in the
+    input files. This should be pretty straightforward if we simply open both and pre-scan
+    for the data we need. We can extract all RG tags, associated sample names, and PS
+    tags/samples in the VCF input in advance and build a simple data structure to relate
+    them all. This could later be done iteratively to accomodate a multi-input-file case.
+    """
+
     try:
+        sample = args.one_sample
+        if sample is None:
+            sys.stderr.write("INFO: No sample name given with -s. Attempting to find them in the input BAM and VCF file(s)...\n" % ())
+            samples = input_data._get_samples_from_bam_header([args.long_read_inputs])
+            #sys.stderr.write("%s\n" % samples)
+            if len(samples) == 0:
+                # No sample name(s) given in the bam file. We will need to get them from the
+                # VCF. The VCF will always contain at least one sample name!
+                sys.stderr.write("\tINFO: Input alignment does not contain sample information! Either there are no RG tags or RG tags lack \n\tthe 'SM' (sample name) field. Sample name(s) will be obtained from the VCF input...\n" % ())
+                samples = input_data._get_samples_from_vcf([args.vcf_file_name])            
+            #sys.stderr.write("76: %s\n" % (samples))
+
+            # For now, just use the first sample in the BAM/VCF as the sample name. Later,
+            # we will need to loop over all samples when multiples are present.
+            sys.stderr.write("\tINFO: Sample names were found in input data. Using the first sample (%s).\n" % (samples[0]))
+            sample = samples[0]
+
+        #sys.stderr.write("%s\n" % (sample))
+        #sys.stderr.write("85: %s\n" % (args.ignore_samples))    
         input_data.add_reads(args.long_read_inputs,
-                             sample = args.one_sample,
+                             sample = sample,
                              quiet = args.quiet_mode,
                              silent = args.silent_mode,
                              threads = args.threads)
     except OSError as e:
         sys.stderr.write("%s\n" % e())
         exit(2)
+
+    # Loading the VCF file invokes (among other things) input_data.sample_to_vcf_file_dict.
+    # This dict is keyed on the sample names in the VCF. We can obtain all the sample names
+    # from there if we need to.
+    
+    input_data.add_haplotype_information(args.vcf_file_name)
+    #sys.stderr.write("70: %s\n" % (input_data.sample_to_vcf_file_dict))
+
+
+    """
+    As far as I know, all of the functionality below is fully-tested and correct!
+    """
     sys.stderr.write("Phasing reads...\n")
     i=0
     for phasable_sample in input_data:
@@ -904,7 +958,7 @@ def getArgs() -> object:
     
     #phasing_parser_multiple_sample.add_argument(
     phasing_parser_output.add_argument(
-        '--ignore_samples',
+        '--ignore_samples', default = False,
         #help = 'Use the --ignore_samples option to ignore sample labels. The first sample column in the VCF will be used and reads will not be matched using RG tags, samples, or phase sets.',
         help=argparse.SUPPRESS,
         action = 'store_true'
@@ -1231,6 +1285,11 @@ def getArgs() -> object:
     #####################################################################################################################
     ############## Parse arguments ######################################################################################    
     args = lrphase_parser.parse_args()
+
+    # Need this hack for now to handle issues with sample/RG tag handling
+    #if args.one_sample is None:
+    #    args.ignore_samples = True
+        
     args.func(args)
     return args
 
@@ -1238,6 +1297,8 @@ def getArgs() -> object:
 def main():
     # This only needs to call the getArgs method, which will then dispatch functions for the indicated runtime mode.
     args: argparse.Namespace = getArgs()
+
+    # TO-DO: VCF sample and BAM RG tag handling need to be completely overhauled. Right now it's way too hacky and error-prone!
     
     
 if __name__ == '__main__':
