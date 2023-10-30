@@ -65,29 +65,45 @@ def phasing(args):
     tags/samples in the VCF input in advance and build a simple data structure to relate
     them all. This could later be done iteratively to accomodate a multi-input-file case.
     """
-
+    
     try:
+        # Not really sure we actually need sample here, unless it's supplied as args.one_sample, any more!
         sample = args.one_sample
-        if sample is None:
-            sys.stderr.write("INFO: No sample name given with -s. Attempting to find them in the input BAM and VCF file(s)...\n" % ())
-            samples = input_data._get_samples_from_bam_header([args.long_read_inputs])
-            #sys.stderr.write("%s\n" % samples)
-            if len(samples) == 0:
-                # No sample name(s) given in the bam file. We will need to get them from the
-                # VCF. The VCF will always contain at least one sample name!
-                sys.stderr.write("\tINFO: Input alignment does not contain sample information! Either there are no RG tags or RG tags lack \n\tthe 'SM' (sample name) field. Sample name(s) will be obtained from the VCF input...\n" % ())
-                samples = input_data._get_samples_from_vcf([args.vcf_file_name])            
-            #sys.stderr.write("76: %s\n" % (samples))
+        samples = args.samples
+        vcf_samples = input_data._get_samples_from_vcf([args.vcf_file_name])
+        
+        if not sample and samples == None:
+            # No sample info given on the command line. Use VCF samples.
+            sys.stderr.write("INFO: No sample name(s) given with -s. We will use the sample name(s) in the input VCF file(s).\n" % ())
+            samples = vcf_samples
+        elif sample and samples == None:
+            # process only the sample given with args.one_sample
+            samples = [sample]
 
-            # For now, just use the first sample in the BAM/VCF as the sample name. Later,
-            # we will need to loop over all samples when multiples are present.
-            sys.stderr.write("\tINFO: Sample names were found in input data. Using the first sample (%s).\n" % (samples[0]))
-            sample = samples[0]
+        # Compare VCF sample names to any sample names in the BAM RG headers.
+        bam_samples = input_data._get_samples_from_bam_header([args.long_read_inputs])
+        #sys.stderr.write("%s\n" % bam_samples)
+        if len(bam_samples) == 0:
+            # No sample name(s) given in the bam file. We will need to get them from the
+            # VCF. The VCF will always contain at least one sample name!
+            sys.stderr.write("WARNING: Input alignment(s) contain no sample information. Either RG tags are absent or they lack 'SM' (sample name) fields. Reads will be processed for all VCF samples.\n" % ())
+        else:
+            sys.stderr.write("INFO: Sample name(s) were found in the BAM RG headers. Comparing to VCF samples. (Only samples present in BAM RG headers will be processed!)\n")
+            sys.stderr.write("89: %s\n" % (samples))
+            sys.stderr.write("90: %s\n" % (bam_samples))
+            samples = [value for value in samples if value in bam_samples]
+            sys.stderr.write("92: %s\n" % (samples))
 
+        if len(samples) == 0:
+            # No samples in the intersection between BAM and VCF -- exit!
+            sys.stderr.write("ERROR: No match found between sample name(s) in BAM and VCF sample name(s). Exiting!\n")
+            exit(2)
+            
         #sys.stderr.write("%s\n" % (sample))
+        #sys.stderr.write("%s\n" % (args.one_sample))
         #sys.stderr.write("85: %s\n" % (args.ignore_samples))    
         input_data.add_reads(args.long_read_inputs,
-                             sample = sample,
+                             sample = samples[0],
                              quiet = args.quiet_mode,
                              silent = args.silent_mode,
                              threads = args.threads)
@@ -95,22 +111,26 @@ def phasing(args):
         sys.stderr.write("%s\n" % e())
         exit(2)
 
-    # Loading the VCF file invokes (among other things) input_data.sample_to_vcf_file_dict.
-    # This dict is keyed on the sample names in the VCF. We can obtain all the sample names
-    # from there if we need to.
-    
+    # Load up haplotypes
     input_data.add_haplotype_information(args.vcf_file_name)
     #sys.stderr.write("70: %s\n" % (input_data.sample_to_vcf_file_dict))
 
 
-    """
-    As far as I know, all of the functionality below is fully-tested and correct!
-    """
-    sys.stderr.write("Phasing reads...\n")
-    i=0
+    sys.stderr.write("\n############## Haplotagging reads ##############\n\n")
+    i=1
     for phasable_sample in input_data:
+        if phasable_sample == None:
+            # No reads for this phaseable sample. Skip it!
+            sys.stderr.write('No reads were found for sample %d (%s). Skipping...\n' % (i, vcf_samples[i-1]))
+            continue
+
+        if phasable_sample.sample not in samples:
+            sys.stderr.write('Skipping sample %d (%s).\n' % (i, phasable_sample.sample))
+            continue
+        
         sys.stderr.write('Processing alignments for sample %d (%s)...\n' % (i, phasable_sample.sample))
-        header_template_file = AlignmentFile(phasable_sample.alignment_file_paths[i], 'rb')
+        #sys.stderr.write('113: %s\n' % (phasable_sample.alignment_file_paths))
+        header_template_file = AlignmentFile(phasable_sample.alignment_file_paths[0], 'rb')
 
         # Instantiate output file(s)
         output_streams = {}
@@ -187,9 +207,10 @@ def phasing(args):
             #if outfile in locals():
             #    locals()[outfile].close()
             output_streams[outfile].close()
-                
+            
+        sys.stderr.write("Done with %s.\n\n" % (phasable_sample.sample))
         i += 1
-        
+    sys.stderr.write("Done haplotagging all samples!.\n")
     return
 
 
@@ -950,10 +971,16 @@ def getArgs() -> object:
     
     #phasing_parser_multiple_sample.add_argument(
     phasing_parser_output.add_argument(
-        '-s', '--one_sample', required = False,
+        '-m', '--one_sample', required = False,
         #help = 'Use the --one_sample option to phase a specific sample present in the input reads and vcf file. (-s HG001)',
         help=argparse.SUPPRESS,
         metavar = '<SAMPLE_NAME>'
+    )
+
+    phasing_parser_output.add_argument(
+        '-s', '--samples', required = False, 
+        help = 'Use the --one_sample option to phase a specific sample present in the input reads and vcf file. (-s HG001)',
+        metavar = '<SAMPLE_NAME>', action = 'append', nargs = '*'
     )
     
     #phasing_parser_multiple_sample.add_argument(

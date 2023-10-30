@@ -138,9 +138,10 @@ class PhasableSample:
         #if read.query_name not in self.unique_read_names:
         #    self.unique_read_names.add(read.query_name)
         #read = self._evaluate_alignment(read)
-        RG_info: object = self._get_RG_info_for_read(read, self.alignment_file_pysam)
+        RG_info = self._get_RG_info_for_read(read, self.alignment_file_pysam)
+        #sys.stderr.write("%s\n" % (RG_info))
         #if str(RG_info[2])[0:3] == 'SIM':
-        #read.set_tag(tag='oa', value=str(RG_info[2][3]), value_type='Z', replace=True)
+        #    read.set_tag(tag='oa', value=str(RG_info[2][3]), value_type='Z', replace=True)
         read.set_tag(tag = 'RG', value = str(RG_info[1]), value_type = 'Z', replace = True)
         self.alignment_files_read_counts[self.alignment_files_processed_count] -= 1
         if self.alignment_files_read_counts[self.alignment_files_processed_count] == 0:
@@ -198,17 +199,19 @@ class PhasableSample:
         if alignment_file_path in self.use_RG_tag.keys():
             use_RG_tag = self.use_RG_tag[alignment_file_path]
             if use_RG_tag:
+                #sys.stderr.write("%s\n" % (read.get_tags()))
+                #sys.stderr.write("%s\n" % (self.RG_ID_dict[alignment_file_path]))
                 if str(read.get_tag('RG')) in self.RG_ID_dict[alignment_file_path]:
                     if self.RG_ID_dict[alignment_file_path][str(read.get_tag('RG'))]['SM'] == self.sample:
                         ID = str(read.get_tag('RG'))
                         outputID = self.RG_ID_dict[alignment_file_path][str(read.get_tag('RG'))]['outputID']
                         sample_description = self.RG_ID_dict[alignment_file_path][str(read.get_tag('RG'))]['DS']
-                        return ID, outputID, sample_description, use_RG_tag
+                        return [ID, outputID, sample_description, use_RG_tag]
             else:
                 ID = list(self.RG_ID_dict[alignment_file_path].keys())[0]
                 outputID = self.RG_ID_dict[alignment_file_path][ID]['outputID']
                 sample_description = self.RG_ID_dict[alignment_file_path][ID]['DS']
-                return ID, outputID, sample_description, use_RG_tag
+                return [ID, outputID, sample_description, use_RG_tag]
 
             
     def simulate_reads(self, path_to_pbsim = 'pbsim', depth = 1,

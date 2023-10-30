@@ -61,34 +61,6 @@ def _pair_sample_with_vcf(sample, sample_to_vcf_file_dict, ignore_phase_sets):
         return
 
 
-def _sample_to_alignment_files(sample_to_vcf_file_dict: dict, RG_ID_dict: dict) -> object:
-    """
-    Create a dictionary relating sample names to alignment files.
-    """
-    sample_to_alignment_files = {}
-    for sample in sample_to_vcf_file_dict:
-        #sys.stderr.write("70: %s\n" % sample)
-        sample_to_alignment_files[sample] = {}
-        for file in RG_ID_dict.keys():
-            #sys.stderr.write("73: %s: %s\n\t%s\n\n" % (file, RG_ID_dict, RG_ID_dict[file]))
-            #if RG_ID_dict[file] is None:
-            #    sample_to_alignment_files[sample][] = file
-            if len([file for key in RG_ID_dict[file].keys() if RG_ID_dict[file][key]['SM'] == sample]) > 0:
-                #sys.stderr.write("%s\n" % file)
-                for pair in [{
-                        alignment_file_path:any(
-                                [RG_ID_dict[alignment_file_path][ID]['RG_tags'] for ID in
-                                 RG_ID_dict[alignment_file_path].keys()]
-                                )
-                        } for alignment_file_path in RG_ID_dict.keys() if any(
-                        [RG_ID_dict[alignment_file_path][ID]['SM'] == sample for ID in
-                         RG_ID_dict[alignment_file_path].keys()]
-                        )]:
-                    #sys.stderr.write("%s\n" % pair)
-                    sample_to_alignment_files[sample][list(pair.keys())[0]] = list(pair.values())[0]
-    return sample_to_alignment_files
-
-
 def _align_long_reads_fastq(long_reads_fastq_path, reference_sequence_input, output_directory, threads, quiet = False, silent = False, no_align = False):
     """
     Align specified reads file to reference genome via minimap2.
@@ -559,7 +531,7 @@ class InputData:
         # Check for phase sets
         if pysam.VariantFile(vcf_file_path).header.formats.keys().count('PS') == 0:
             ignore_phase_sets = True
-            sys.stderr.write("This VCF file does not have the PS subfield. Phase sets will be ignored and all phased variants on the same chromosome (vcf contig) will be considered to be one contiguous haploblock " % vcf_file_path)
+            sys.stderr.write("WARNING: This VCF file does not have the PS subfield. Phase sets will be ignored and all phased variants on the same chromosome (vcf contig) will be considered to be one contiguous haploblock " % vcf_file_path)
 
         # Append the VCF file path to self.vcf_files[], etc.
         self.vcf_files.append({vcf_file_path:ignore_phase_sets})
@@ -567,7 +539,7 @@ class InputData:
         self.sample_to_vcf_file_dict = _sample_to_vcf_file_dict(self.vcf_files)
         #sys.stderr.write("612: %s\n" % (self.sample_to_vcf_file_dict))
         #sys.stderr.write("613: %s\n" % (self.RG_ID_dict))
-        self.sample_to_alignment_files = _sample_to_alignment_files(self.sample_to_vcf_file_dict, self.RG_ID_dict)
+        self.sample_to_alignment_files = self._sample_to_alignment_files(self.sample_to_vcf_file_dict, self.RG_ID_dict)
         #sys.stderr.write("%s\n" % (self.sample_to_alignment_files))
         try:
             self._sample_to_reference_sequences_dict()
@@ -601,6 +573,9 @@ class InputData:
         reference_sequence_names: list = self.sample_to_reference_sequences_dict[sample]
         #sys.stderr.write("%s\n" % sample)
         #sys.stderr.write("%s\n" % self.sample_to_alignment_files[sample])
+        if len(self.sample_to_alignment_files[sample].keys()) == 0:
+            # This sample does not have reads in any input files!
+            return None
         phasable_sample = PhasableSample.PhasableSample(
             sample, vcf_file_path, ignore_phase_sets, self.sample_to_alignment_files[sample], self.RG_ID_dict,
             reference_sequence_names, reference_sequence_paths = reference_sequence_paths,
@@ -618,13 +593,14 @@ class InputData:
             else:
                 reference_sequence_paths = self.reference_sequence_paths
             phasable_sample = self.new_PhasableSample(sample, reference_sequence_paths, self.auto_simulate_samples)
-            #vcf_file_path, ignore_phase_sets = self._pair_sample_with_vcf(sample, self.sample_to_vcf_file_dict,
-            #                                                             self.ignore_phase_sets)
-            #phasable_sample = PhasableSample(sample, vcf_file_path, ignore_phase_sets,
-            #                               self.sample_to_alignment_files[sample], self.RG_ID_dict)
             self.sample_counter += 1
-            self.phasable_samples[phasable_sample.sample] = phasable_sample
-            return phasable_sample
+            if phasable_sample == None:
+                # Reserved for when we don't want to process a sample!
+                self.phasable_samples[sample] = None
+                return None
+            else:
+                self.phasable_samples[sample] = phasable_sample
+                return phasable_sample
         else:
             raise StopIteration()
 
@@ -700,7 +676,7 @@ class InputData:
                 #sys.stderr.write("%s; %s\n" % (self.RG_ID_dict, self.unique_RG_IDs))
                 self.alignment_files.append(sorted_bam_file_path[0])
                 #sys.stderr.write("%s\n" % self.alignment_files)
-                self.sample_to_alignment_files = _sample_to_alignment_files(
+                self.sample_to_alignment_files = self._sample_to_alignment_files(
                         self.sample_to_vcf_file_dict, self.RG_ID_dict
                         )
                 #sys.stderr.write("%s\n" % self.sample_to_alignment_files)
@@ -998,6 +974,7 @@ class InputData:
 
     
     def _compile_read_groups(self, alignment_file_path, sample, ID, sample_description, RG_ID_dict, unique_RG_IDs, ignore_samples):
+        # Seems like we really shouldn't need to pass in the last three args, since they belong to self!
         """
         Builds RG_ID_dict, which is used to relate read groups (in RG tags) and their associated sample
         names and IDs, which should correspond to specific sample columns in the VCF input.
@@ -1015,7 +992,10 @@ class InputData:
             
             with pysam.AlignmentFile(alignment_file_path, 'rb') as bam_file:
                 RG_tags = bam_file.header.get('RG')
-            if sample is not None:
+            #sys.stderr.write("994: %s\n" % (RG_tags))
+            #sys.stderr.write("995: %s\n" % (sample))
+            if sample is not None and RG_tags is None:
+                #sys.stderr.write("997: %s\n" % (sample))
                 RG_ID_dict[str(alignment_file_path)] = {}
                 if ID is not None:
                     RG_ID_dict[str(alignment_file_path)][str(ID)] = {}
@@ -1101,6 +1081,54 @@ class InputData:
             for sample in list(variant_file.header.samples):
                 samples.append(sample)
         return samples
+
+
+    def _sample_to_alignment_files(self, sample_to_vcf_file_dict: dict, RG_ID_dict: dict) -> object:
+        """
+        Create a dictionary relating sample names to alignment files.                                                                                                   
+        """
+        sample_to_alignment_files = {}
+        for sample in sample_to_vcf_file_dict:
+            #sys.stderr.write("70: %s\n" % sample)
+            sample_to_alignment_files[sample] = {}
+            for file in RG_ID_dict.keys():
+                #    sys.stderr.write("73: %s:\t%s\n\n" % (file, RG_ID_dict[file]))
+
+                # No RG tags in BAM file.
+                #if RG_ID_dict[file] is None:
+                #    sys.stderr.write("WARNING: %s has no RG tags. This file will be processed for all VCF samples.\n" % ())
+                #    sample_to_alignment_files[sample][""" What index here??? """] = file
+
+                if len([file for key in RG_ID_dict[file].keys() if RG_ID_dict[file][key]['SM'] == sample]) > 0:
+                    # Sample is found in at least one RG tag's 'SM' field. Pair sample with all applicable files.
+                    #sys.stderr.write("%s\n" % file)
+                    for pair in [{
+                            alignment_file_path:any(
+                                [RG_ID_dict[alignment_file_path][ID]['RG_tags'] for ID in
+                                 RG_ID_dict[alignment_file_path].keys()]
+                            )
+                    } for alignment_file_path in RG_ID_dict.keys() if any(
+                        [RG_ID_dict[alignment_file_path][ID]['SM'] == sample for ID in
+                         RG_ID_dict[alignment_file_path].keys()]
+                    )]:
+                        #sys.stderr.write("91: %s\n" % pair)
+                        sample_to_alignment_files[sample][list(pair.keys())[0]] = list(pair.values())[0]
+                else:
+                    # Sample is not found in 'SM' field in any RG tags, or there are no RG/SM tags in the BAM.
+                    #sys.stderr.write("%s\n" % (RG_ID_dict))
+                    #sys.stderr.write("1109: %s\n" % ([file for key in RG_ID_dict[file].keys() if 'SM' in RG_ID_dict[file][key].keys()]))
+                    #sys.stderr.write("1110: %s\n" % ([file for key in RG_ID_dict[file].keys()  if RG_ID_dict[file][key]['RG_tags'] == True]))
+                    if len([file for key in RG_ID_dict[file].keys() if 'SM' in RG_ID_dict[file][key].keys()]) == 0 or len([file for key in RG_ID_dict[file].keys() if RG_ID_dict[file][key]['SM'] != None]) == 0 or len([file for key in RG_ID_dict[file].keys()  if RG_ID_dict[file][key]['RG_tags'] == True]) == 0:
+                        # BAM lacks @RG tag(s) or lack 'SM' (sample name) fields. Treat all reads as belonging to sample.
+                        sys.stderr.write("WARNING: BAM input lacks @RG headers or contains @RG tags that lack SM (sample name) fields. All reads in %s will be processed for Sample %s.\n" % (file, sample))
+                        sample_to_alignment_files[sample][file] = self.ignore_phase_sets
+                    else:
+                        # BAM has sample names, but __THIS__ VCF sample is not present among them.
+                        # Throw a warning and skip this sample, but process others.
+                        sys.stderr.write("WARNING: Sample %s is not found in (any of) the BAM RG header(s). This sample will not be processed!\n" % (sample))
+                        
+        return sample_to_alignment_files
+
 
 
 def _sort_vcf_file(vcf_file_input: object, vcf_file_output: object = None) -> object:
