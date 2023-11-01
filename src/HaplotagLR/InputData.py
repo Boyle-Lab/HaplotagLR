@@ -7,13 +7,12 @@ from collections import defaultdict
 from datetime import date
 from shutil import copyfileobj
 from typing import Any, Dict, Tuple, List, Optional, Union
-
 import pysam
 import requests
-from LRphase import PhasableSample
-from LRphase.PhasedRead import *
-from pysam import VariantFile
-from LRphase import urls
+
+from HaplotagLR import PhasableSample
+from HaplotagLR.PhasedRead import *
+from HaplotagLR import urls
 
 
 def _prepare_output_directory(output_directory_path: str) -> object:#Optional[str]:
@@ -328,7 +327,7 @@ def _compile_read_groups(
                     RG_ID_dict[str(alignment_file_path)][str(ID)]['DS'] = str(sample_description)
                 else:
                     RG_ID_dict[str(alignment_file_path)][str(ID)]['DS'] = str(
-                            'LRphase_input_file_' + str(alignment_file_path)
+                            'HaplotagLR_input_file_' + str(alignment_file_path)
                             )
             else:
                 ID = '0' + str(random.randint(1, 10000))
@@ -340,7 +339,7 @@ def _compile_read_groups(
                     RG_ID_dict[str(alignment_file_path)][str(ID)]['DS'] = str(sample_description)
                 else:
                     RG_ID_dict[str(alignment_file_path)][str(ID)]['DS'] = str(
-                            'LRphase_input_file_' + str(alignment_file_path)
+                            'HaplotagLR_input_file_' + str(alignment_file_path)
                             )
             if str(ID) not in unique_RG_IDs:
                 unique_RG_IDs[str(ID)] = {}
@@ -363,7 +362,7 @@ class InputData:
     """
     output_directory: object
     try:
-        from LRphase import urls
+        from HaplotagLR import urls
         urls_found = True
     except:
         sys.stderr.write('Could not find import urls from data. Data will not be able to downloaded from example web sources.\n')
@@ -387,7 +386,7 @@ class InputData:
             self.output_directory = _prepare_output_directory(output_directory_path)
         else:
             self.output_directory = _prepare_output_directory(
-                    'LRphase_output_' + str(time.localtime()[0]) + '-' + str(time.localtime()[1]) + '-' + str(
+                    'HaplotagLR_output_' + str(time.localtime()[0]) + '-' + str(time.localtime()[1]) + '-' + str(
                             time.localtime()[2]
                             ) + '_' + str(time.localtime()[3]) + 'hr_' + str(time.localtime()[4]) + 'min_' + str(
                             time.localtime()[5]
@@ -604,7 +603,7 @@ class InputData:
                 )
         reference_sequence_names: list = self.sample_to_reference_sequences_dict[sample]
         #sys.stderr.write("%s\n" % sample)
-        #sys.stderr.write("%s\n" % self.sample_to_alignment_files[sample])
+        #sys.stderr.write("606: %s\n" % self.sample_to_alignment_files[sample])
         phasable_sample = PhasableSample.PhasableSample(
             sample, vcf_file_path, ignore_phase_sets, self.sample_to_alignment_files[sample], self.RG_ID_dict,
             reference_sequence_names, reference_sequence_paths = reference_sequence_paths,
@@ -888,7 +887,7 @@ class InputData:
             return sorted_bam_file_paths, combined_long_read_fastq_path
             
         elif not os.path.exists(long_reads_alignment_path):
-            sys.stderr.write("ERROR: Could not find %s.\nUse -i to specify the path of a file containing reads for phasing OR use -i to specify the path of a directory containing the long read files and all files will be processed individually.\n(EX: -i path/minion_run3_GM12878/minion_run3_GM12878_0.fastq OR -i path/minion_run3_GM12878/minion_run3_GM12878_0.sam OR -i path/minion_run3_GM12878/minion_run3_GM12878_0_sorted.bam OR -i path/minion_run3_GM12878/\n\n)." % long_reads_alignment_path)
+            sys.stderr.write("ERROR: Could not find %s.\nUse -i to specify the path of a file containing reads for haplotagging OR use -i to specify the path of a directory containing the long read files and all files will be processed individually.\n(EX: -i path/minion_run3_GM12878/minion_run3_GM12878_0.fastq OR -i path/minion_run3_GM12878/minion_run3_GM12878_0.sam OR -i path/minion_run3_GM12878/minion_run3_GM12878_0_sorted.bam OR -i path/minion_run3_GM12878/\n\n)." % long_reads_alignment_path)
             raise OSError("File not found")
         
         elif os.path.isdir(long_reads_alignment_path):
@@ -935,7 +934,7 @@ class InputData:
                     )
                 )
         else:
-            sys.stderr.write('Error: Reads should be in .fastq, .fastq.gz, .sam, or .bam format. %s does not have a correct suffix to be a valid format and is not a directory. Use -i to specify the path of a file containing reads for phasing OR use -i to specify the path of a directory containing the long read files and all files will be processed individually. (EX: -i path/minion_run3_GM12878/minion_run3_GM12878_0.fastq OR -i path/minion_run3_GM12878/minion_run3_GM12878_0.sam OR -i path/minion_run3_GM12878/minion_run3_GM12878_0_sorted.bam OR -i path/minion_run3_GM12878/).' % long_reads_alignment_path)
+            sys.stderr.write('Error: Reads should be in .fastq, .fastq.gz, .sam, or .bam format. %s does not have a correct suffix to be a valid format and is not a directory. Use -i to specify the path of a file containing reads for haplotagging OR use -i to specify the path of a directory containing the long read files and all files will be processed individually. (EX: -i path/minion_run3_GM12878/minion_run3_GM12878_0.fastq OR -i path/minion_run3_GM12878/minion_run3_GM12878_0.sam OR -i path/minion_run3_GM12878/minion_run3_GM12878_0_sorted.bam OR -i path/minion_run3_GM12878/).' % long_reads_alignment_path)
             raise Exception('Unsupported long read file format.')
         
         return sorted_bam_file_paths, combined_long_read_fastq_path
@@ -954,7 +953,7 @@ class InputData:
             vcf_file_input = self._download_file(vcf_file_input, self.output_directory + '/haplotype_information')
         
         if not os.path.isfile(vcf_file_input):
-            sys.stderr.write('Could not find %s. Use -v to specify the path of the vcf file to be used as haplotype information for phasing. (EX: -v path/to/GM12878.vcf.gz or --vcf GM12878.vcf).' % vcf_file_input)
+            sys.stderr.write('Could not find %s. Use -v to specify the path of the vcf file to be used as haplotype information for haplotagging. (EX: -v path/to/GM12878.vcf.gz or --vcf GM12878.vcf).' % vcf_file_input)
             return
 
         # Check input file for proper format (GT header present, bgzipped, tabix indexed).
@@ -972,7 +971,7 @@ class InputData:
                 sys.stderr.write('%s is a valid vcf file.\n' % vcf_file_path)
             # Compress with bgzip if not already done.
             else:
-                sys.stderr.write('%s is a valid .vcf file but it is not in bgzip (.vcf.gz) format. VCF files must be compressed with bgzip and indexed with tabix. LRphase will now attempt to run bgzip on %s.\n' % (vcf_file_input, vcf_file_input))
+                sys.stderr.write('%s is a valid .vcf file but it is not in bgzip (.vcf.gz) format. VCF files must be compressed with bgzip and indexed with tabix. HaplotagLR will now attempt to run bgzip on %s.\n' % (vcf_file_input, vcf_file_input))
                 # Assuming there should be a call to _sort_vcf_file here??
                 vcf_file_path = _sort_vcf_file(vcf_file_path)
 
@@ -1024,7 +1023,7 @@ class InputData:
                         RG_ID_dict[str(alignment_file_path)][str(ID)]['DS'] = str(sample_description)
                     else:
                         RG_ID_dict[str(alignment_file_path)][str(ID)]['DS'] = str(
-                            'LRphase_input_file_' + str(alignment_file_path)
+                            'HaplotagLR_input_file_' + str(alignment_file_path)
                         )
                 else:
                     ID = '0' + str(random.randint(1, 10000))
@@ -1036,7 +1035,7 @@ class InputData:
                         RG_ID_dict[str(alignment_file_path)][str(ID)]['DS'] = str(sample_description)
                     else:
                         RG_ID_dict[str(alignment_file_path)][str(ID)]['DS'] = str(
-                            'LRphase_input_file_' + str(alignment_file_path)
+                            'HaplotagLR_input_file_' + str(alignment_file_path)
                         )
                 if str(ID) not in unique_RG_IDs:
                     unique_RG_IDs[str(ID)] = {}
@@ -1092,5 +1091,5 @@ def _sort_vcf_file(vcf_file_input: object, vcf_file_output: object = None) -> ob
         )
         return vcf_file_output
     except Exception as e:
-        sys.stderr.write("Error occurred when bgzip was run. Bgzip must be installed on PATH for LRphase to continue. Please check bgzip installation or provide a bgzip compressed vcf file using the -v option (EX: -v path/to/GM12878.vcf.gz). Error: %s\n" % e)
+        sys.stderr.write("Error occurred when bgzip was run. Bgzip must be installed on PATH for HaplotagLR to continue. Please check bgzip installation or provide a bgzip compressed vcf file using the -v option (EX: -v path/to/GM12878.vcf.gz). Error: %s\n" % e)
         return

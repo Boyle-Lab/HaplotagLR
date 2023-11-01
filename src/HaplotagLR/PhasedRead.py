@@ -4,7 +4,8 @@ from collections import defaultdict
 from pysam import VariantFile, AlignmentFile
 #import numpy as np
 import pyliftover
-from LRphase import PhasableSample, PhaseSet
+
+from HaplotagLR import PhasableSample, PhaseSet
 
 
 def true_alignment_match(
@@ -209,7 +210,7 @@ class PhasedRead:
             error_rate_threshold = 0.01,
             prior_probabilities = None, bam_file_header = None, bam_file_template = None,
             output_file_path = None, liftover_converters = None,
-            multinomial_correction = True, auto_phase = True, evaluate_alignment = True,
+            multinomial_correction = True, auto_tag = True, evaluate_alignment = True,
             evaluate_true_alignment = False, aligned_reference_sequence_path = None,
             powlaw_alpha = 4.5, powlaw_xmin = 2.0
     ):
@@ -249,7 +250,7 @@ class PhasedRead:
         # self._get_alignment_label()
         if self.liftover_converters is None:
             self.liftover_converters = liftover_converters
-        self.auto_phase = auto_phase
+        self.auto_tag = auto_tag
         self._PhaseSet_max = None
         self.PhaseSets = []
         self.evaluate_alignment = evaluate_alignment
@@ -303,14 +304,14 @@ class PhasedRead:
                 strand = None
             )
         
-        if self.auto_phase:
-            self.phase_read(
+        if self.auto_tag:
+            self.tag_read(
                     error_model = self.error_model, error_rate_threshold = self.error_rate_threshold,
                     multinomial_correction = self.multinomial_correction,
                     )
     
     def __repr__(self):
-        return f'Read Name: {self.query_name}, Is phased: {self.is_phased}, Favors single phase: {self.one_phase_is_favored}\nRead Length: {self.aligned_segment.query_length}\nAlignment Type: {self.alignment_type}\nPrimary Alignment Length: {self.aligned_segment.query_alignment_length}'
+        return f'\nRead Name: {self.query_name}, Is tagged: {self.is_tagged}, Favors single phase: {self.one_phase_is_favored}\nRead Length: {self.aligned_segment.query_length}\nAlignment Type: {self.alignment_type}\nPrimary Alignment Length: {self.aligned_segment.query_alignment_length}\nLog Likelihood Ratio: {self.log_likelihood_ratio}\n'
     
     def __iter__(self):
         self.PhaseSets = self._find_PhaseSets(
@@ -346,6 +347,7 @@ class PhasedRead:
         variants_phase_sets = self._fetch_phased_variants(
                 self.aligned_segment, self.vcf_file, self.sample, self.ignore_phase_sets
                 )
+        #sys.stderr.write("PR 350: %s\n" % (variants_phase_sets))
         
         PhaseSets = []
         if len(variants_phase_sets) > 0:
@@ -368,15 +370,15 @@ class PhasedRead:
         
         return PhaseSets
     
-    def phase_read(
+    def tag_read(
         self, 
         error_model = None,
         error_rate_threshold = None, 
         prior_probabilities = None,
         multinomial_correction = None
     ):
-        '''#self.PhaseSet_max, self.phase, self.phase_set_name, self.log_likelihood_ratio, self.max_phase,
-        self.ploidy_phase_set = self._select_best_phasing(self._find_PhaseSets()) '''
+        '''#self.PhaseSet_max, self.tag, self.phase_set_name, self.log_likelihood_ratio, self.max_phase,
+        self.ploidy_phase_set = self._select_best_haplotag(self._find_PhaseSets()) '''
         if error_model is None:
             error_model = self.error_model
         if error_rate_threshold is None:
@@ -397,38 +399,41 @@ class PhasedRead:
         #    if self.aligned_segment.has_tag('oa'):
         #        match_label = self._evaluate_true_alignment
         
-        #_PhaseSet_max, phase, phase_set_name, log_likelihood_ratio, max_phase = self._select_best_phasing(
-        _PhaseSet_max = self._select_best_phasing(
-            self._find_PhaseSets(
-                error_model,
-                error_rate_threshold,
-                prior_probabilities,
-                liftover_converters = self.liftover_converters
-            ),
+        phase_sets = self._find_PhaseSets(
+            error_model,
+            error_rate_threshold,
+            prior_probabilities,
+            liftover_converters = self.liftover_converters
+        )
+        #sys.stderr.write("PR 407: %s\n" % (phase_sets))
+        
+        _PhaseSet_max = self._select_best_haplotag(
+            phase_sets,
             error_model,
             error_rate_threshold,
             prior_probabilities,
             multinomial_correction
         )
-        
+        #sys.stderr.write("414: %s, %s, %s, %s\n" % (_PhaseSet_max.log_likelihood_ratios, _PhaseSet_max.tag, _PhaseSet_max.max_phase, _PhaseSet_max.max_log_likelihood_ratio))
         self._PhaseSet_max = _PhaseSet_max
         
         self.aligned_segment.set_tag(tag = 'PS', value = str(self.phase_set_name), value_type='Z', replace=True)
-        self.aligned_segment.set_tag(tag = 'HP', value = str(self.phase), value_type='Z', replace=True)
+        self.aligned_segment.set_tag(tag = 'HP', value = str(self.tag), value_type='Z', replace=True)
         self.aligned_segment.set_tag(tag = 'PC', value = str(self.log_likelihood_ratio), value_type='Z', replace=True)
         self.aligned_segment.set_tag(tag = 'py', value = str(self.ploidy_phase_set), value_type='Z', replace=True)
         self.aligned_segment.set_tag(tag = 'HS', value = str(self._PhaseSet_max.total_hets), value_type='Z', replace=True)
         
         return self
     
-    def _select_best_phasing(
+    def _select_best_haplotag(
             self, PhaseSets, error_model, error_rate_threshold, prior_probabilities = None,
             multinomial_correction = True
             ):
-        '''self.PhaseSet_max, self.phase, self.phase_set_name, self.log_likelihood_ratio, self.max_phase =
-        self._select_best_phasing(self.PhaseSets) '''
+        '''self.PhaseSet_max, self.tag, self.phase_set_name, self.log_likelihood_ratio, self.max_phase =
+        self._select_best_haplotag(self.PhaseSets) '''
+        #sys.stderr.write("PR 431: %s\n" % (PhaseSets))
         self.PhaseSets = PhaseSets
-        phasable = {}
+        taggable = {}
         if isinstance(PhaseSets, str):
             return PhaseSet.PhaseSet(None, None, None, None)
         
@@ -441,10 +446,10 @@ class PhasedRead:
                     multinomial_correction
                 )
                 if isinstance(_PhaseSet.max_log_likelihood_ratio, float):
-                    phasable[_PhaseSet.max_log_likelihood_ratio] = _PhaseSet
+                    taggable[_PhaseSet.max_log_likelihood_ratio] = _PhaseSet
         
-        if len(phasable) > 0:
-            PhaseSet_max = phasable[max(phasable.keys())]
+        if len(taggable) > 0:
+            PhaseSet_max = taggable[max(taggable.keys())]
         else:
             PhaseSet_max = PhaseSet.PhaseSet(None, self.aligned_segment, [], str(self.sample))
         
@@ -465,8 +470,9 @@ class PhasedRead:
         try:
             vcf_recs = vcf_in.fetch(aligned_segment.reference_name, aligned_segment.reference_start, aligned_segment.reference_end)
             # Note that coordinates supplied in this way are assumed zero-based by pysam (see source code, https://github.com/pysam-developers/pysam/blob/master/pysam/libcbcf.pyx, line 4366. We should verify these are zero-based. If not, use pysam chr:start-end string -- these are treated as one-based. This may not be a huge deal, since only variants coinciding with the start/end of the fragment will be affected.
-            
+            #sys.stderr.write("PR 473: %s, ingnore_phase_sets: %s, sample: %s\n\n" % (vcf_recs, ignore_phase_sets, sample))
             for vcf_record in vcf_recs:
+                #sys.stderr.write("PR 475: %s\n" % (vcf_record))
                 if vcf_record.samples[str(sample)].phased and max(vcf_record.samples[str(sample)].allele_indices) > min(
                         vcf_record.samples[str(sample)].allele_indices
                         ):
@@ -474,6 +480,7 @@ class PhasedRead:
                         variants_phase_sets['ignore_phase_sets'].append(vcf_record)
                     else:
                         variants_phase_sets[str(vcf_record.samples[str(sample)]['PS'])].append(vcf_record)
+                    #sys.stderr.write("PR 483: %s\n" % (variants_phase_sets))
         except:
             # Do some error handling...
             pass
@@ -527,20 +534,20 @@ class PhasedRead:
 
     
     @property
-    def is_phased_correctly(self):
+    def is_tagged_correctly(self):
         '''
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            if self.is_phased:
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            if self.is_tagged:
                 return False
             else:
                 return
         else:
-            if self.is_phased:
+            if self.is_tagged:
                 if self.aligned_segment.has_tag('ha'):
-                    return str(self.phase) == str(self.aligned_segment.get_tag('ha'))
+                    return str(self.tag) == str(self.aligned_segment.tag('ha'))
     
     @property
     def read_name(self):
@@ -669,12 +676,12 @@ class PhasedRead:
             return str(self.aligned_segment.get_tag('OV'))
     
     @property
-    def favored_phase_is_correct(self):
+    def favored_tag_is_correct(self):
         '''
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max == 'Nonphasable':
+        elif self.PhaseSet_max == 'Nontaggable':
             return False
         else:
             if self.one_phase_is_favored:
@@ -682,17 +689,17 @@ class PhasedRead:
                     return str(self.max_phase) == str(self.aligned_segment.get_tag('ha'))
     
     @property
-    def is_phased_incorrectly(self):
+    def is_taggedd_incorrectly(self):
         '''
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max == 'Nonphasable':
+        elif self.PhaseSet_max == 'Nontaggable':
             return False
         else:
-            if self.is_phased:
+            if self.is_tagged:
                 if self.aligned_segment.has_tag('ha'):
-                    return str(self.phase) != str(self.aligned_segment.get_tag('ha'))
+                    return str(self.tag) != str(self.aligned_segment.get_tag('ha'))
     
     @property
     def favored_phase_is_incorrect(self):
@@ -700,7 +707,7 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max == 'Nonphasable':
+        elif self.PhaseSet_max == 'Nontaggable':
             return False
         else:
             if self.one_phase_is_favored:
@@ -708,46 +715,43 @@ class PhasedRead:
                     return str(self.max_phase) != str(self.aligned_segment.get_tag('ha'))
     
     @property
-    def is_Nonphasable(self):
+    def is_Nontaggable(self):
         '''
-        Returns True if this aligned_segment was assigned Nonphasable for not having any heterozygous positions
+        Returns True if this aligned_segment was assigned Nontaggable for not having any heterozygous positions
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max == 'Nonphasable':
+        elif self.PhaseSet_max == 'Nontaggable':
             return True
         else:
-            return self.phase == 'Nonphasable'
+            return self.tag == 'Nontaggable'
     
     @property
-    def is_Unphased(self):
+    def is_Untagged(self):
         '''
         Returns True if this aligned_segment was left unassigned (Unphased) because it did not have a log likelihood ratio (LR)
         above the threshold chosen for this experiment.
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max == 'Nonphasable':
+        elif self.PhaseSet_max == 'Nontaggable':
             return False
         else:
-            return self.phase == 'Unphased'
+            return self.tag == 'Untagged'
     
     @property
-    def is_phased(self):
+    def is_tagged(self):
         '''
         Returns True if this aligned_segment was assigned to a haplotype based on its log likelihood ratio (LR) being above the
         threshold chosen for this experiment.
         '''
         if self.PhaseSet_max is None:
-            return
-        elif self.PhaseSet_max == 'Nonphasable':
             return False
-        else:
-            if self.phase == 'Unphased' or self.phase == 'Nonphasable':
-                return False
-            else:
-                return True
-        return False
+        elif self.PhaseSet_max == 'Nontaggable':
+            return False
+        elif self.tag == 'Untagged' or self.tag == 'Nontaggable':
+            return False
+        return True
     
     @property
     def one_phase_is_favored(self):
@@ -755,9 +759,9 @@ class PhasedRead:
         Returns True if this aligned_segment was assigned to a haplotype based on its log likelihood ratio (LR) being above the
         threshold chosen for this experiment.
         '''
-        if self.PhaseSet_max is None:
+        if self.PhaseSet_max is None or self.max_phase is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
+        elif self.PhaseSet_max.tag == 'Nontaggable':
             return False
         else:
             if int(self.max_phase) > 0:
@@ -774,10 +778,10 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max == 'Nonphasable':
+        elif self.PhaseSet_max == 'Nontaggable':
             return False
         else:
-            return str(self.phase) == str(haplotype)
+            return str(self.tag) == str(haplotype)
     
     @property
     def overlaps_multiple_phase_sets(self):
@@ -787,7 +791,7 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max == 'Nonphasable':
+        elif self.PhaseSet_max == 'Nontaggable':
             return False
         if len(self.PhaseSets) > 1:
             overlaps_multiple_phase_sets = True
@@ -801,21 +805,21 @@ class PhasedRead:
         '''
         if self._PhaseSet_max is None:
             return
-        elif self._PhaseSet_max == 'Nonphasable':
-            return 'Nonphasable'
+        elif self._PhaseSet_max == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self._PhaseSet_max
     
     @property
-    def phase(self):
+    def tag(self):
         '''
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
-            return self.PhaseSet_max.phase
+            return self.PhaseSet_max.tag
     
     @property
     def max_phase(self):
@@ -825,8 +829,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.max_phase
     
@@ -838,14 +842,16 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.phase_set
     
     @property
-    def phasing_error_rate(self):
-        if self.phase in ['Nonphasable', 'nonphasable']:
+    def haplotag_error_rate(self):
+        if self.log_likelihood_ratio is None:
+            return
+        if self.tag in ['Nontaggable', 'nontaggable']:
             return 0.50
         if self.log_likelihood_ratio > 0:
             p = self.powlaw_modified(self.log_likelihood_ratio,
@@ -869,8 +875,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.max_log_likelihood_ratio
     
@@ -882,8 +888,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.ploidy_phase_set
     
@@ -895,8 +901,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.error_model_used
     
@@ -908,7 +914,7 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
+        elif self.PhaseSet_max.tag == 'Nontaggable':
             return False
         else:
             return self.PhaseSet_max.multinomial_correction
@@ -921,8 +927,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.error_rate_threshold_used
     
@@ -934,8 +940,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.prior_probabilities_used
     
@@ -947,8 +953,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.error_rate_average_het_sites
     
@@ -960,22 +966,22 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.per_base_mismatch_rate
     
     @property
     def total_hets_analyzed_favored_haplotype(self):
         '''
-        Returns the total number of heterozygous positions that were included in the phasing evaluation for this aligned_segment
+        Returns the total number of heterozygous positions that were included in the haplotag evaluation for this aligned_segment
         that resulted in the most favorable likelihood (ie: positions containing heterozygous SNVs that align to the
         aligned_segment of interest.)
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.total_hets_analyzed
     
@@ -988,8 +994,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.total_hets
     
@@ -1001,8 +1007,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.matches[self.PhaseSet_max.max_phase - 1]
     
@@ -1014,8 +1020,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.non_matches[self.PhaseSet_max.max_phase - 1]
     
@@ -1028,8 +1034,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.prior_probabilities[i - 1]
     
@@ -1043,8 +1049,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.prior_probabilities[self.max_phase - 1]
     
@@ -1059,8 +1065,8 @@ class PhasedRead:
         """
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.log_probability_read_given_haplotype_i[i - 1]
     
@@ -1075,8 +1081,8 @@ class PhasedRead:
         """
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return 10**self.PhaseSet_max.log_probability_read_given_haplotype_i[i - 1]
     
@@ -1089,8 +1095,8 @@ class PhasedRead:
         """
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.PhaseSet_max.log_probability_read_given_haplotype_i[self.max_phase - 1]
     
@@ -1103,8 +1109,8 @@ class PhasedRead:
         """
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return 10**self.PhaseSet_max.log_probability_read_given_haplotype_i[self.max_phase - 1]
     
@@ -1116,8 +1122,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.calculate_likelihood_of_read_given_haplotype_i(
                     self.max_phase - 1
@@ -1131,8 +1137,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             if self.total_probability_of_read_given_haplotypes and self.bayes_numerator_for_haplotype_i(
                     self.max_phase - 1
@@ -1158,8 +1164,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             if self.total_probability_of_read_given_haplotypes and self.bayes_numerator_for_haplotype_i(
                     self.max_phase - 1
@@ -1175,8 +1181,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             if self.total_probability_of_read_given_haplotypes and self.bayes_numerator_for_haplotype_i(
                     self.max_phase - 1
@@ -1192,8 +1198,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             return self.calculate_likelihood_of_read_given_haplotype_i(i - 1) * self.prior_probability_for_haplotype_i(
                     i - 1
@@ -1206,8 +1212,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             if self.total_probability_of_read_given_haplotypes and self.bayes_numerator_for_haplotype_i(i - 1):
                 return math.log10(self.bayes_numerator_for_haplotype_i(i - 1)) - math.log10(
@@ -1230,8 +1236,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             if self.total_probability_of_read_given_haplotypes and self.bayes_numerator_for_haplotype_i(i - 1):
                 return self.bayes_numerator_for_haplotype_i(i - 1) / self.total_probability_of_read_given_haplotypes
@@ -1242,8 +1248,8 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
             if self.total_probability_of_read_given_haplotypes and self.bayes_numerator_for_haplotype_i(i - 1):
                 return math.log10(self.bayes_numerator_for_haplotype_i(i - 1)) - math.log10(
@@ -1259,7 +1265,7 @@ class PhasedRead:
         '''
         if self.PhaseSet_max is None:
             return
-        elif self.PhaseSet_max.phase == 'Nonphasable':
-            return 'Nonphasable'
+        elif self.PhaseSet_max.tag == 'Nontaggable':
+            return 'Nontaggable'
         else:
-            return sum([self.bayes_numerator_for_haplotype_i(i) for i in range(1, self.ploidy_phase_set + 1)])
+            return sum([self.bayes_numerator_for_haplotype_i(i) for i in range(1, self.ploidy_phase_set,_set + 1)])

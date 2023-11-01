@@ -3,8 +3,10 @@ import time
 from typing import Any, Iterator
 import sys, os
 import pysam
-from LRphase import SimulatePhasedData
 import pyliftover
+
+from HaplotagLR import SimulatePhasedData
+
 
 class PhasableSample:
     """
@@ -42,7 +44,7 @@ class PhasableSample:
         self.alignment_file_paths = []
         self.RG_ID_dict = RG_ID_dict
         self.use_RG_tag = {}
-        
+
         for alignment_file_path in alignment_file_paths:
             self.alignment_file_paths.append(str(alignment_file_path))
             self.use_RG_tag[str(alignment_file_path)] = alignment_file_paths[str(alignment_file_path)]
@@ -242,27 +244,3 @@ class PhasableSample:
                                                                                                  haplotype = haplotype
             )
             
-            
-    
-        
-                       
-        
-    # @classmethod
-    # def PhasableSample(
-    #         cls, sample, vcf_file_path, ignore_phase_sets, param, RG_ID_dict: object, reference_sequence_names,
-    #         reference_sequence_paths
-    #         ):
-    #     """
-    #
-    #     Args:
-    #         sample:
-    #         vcf_file_path:
-    #         ignore_phase_sets:
-    #         reference_sequence_names:
-    #         reference_sequence_paths:
-    #         RG_ID_dict (object):
-    #
-    #     Returns:
-    #         object:
-    #     """
-    #     pass

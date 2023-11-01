@@ -1,6 +1,6 @@
 __version__ = '1.1.3'
 try:
-    from ._LRphase import longest  # noqa
+    from ._HaplotagLR import longest  # noqa
 except ImportError:
     def longest(args):
         """

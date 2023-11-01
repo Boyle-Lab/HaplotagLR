@@ -8,4 +8,6 @@ example_data/*.fastq
 
 build/
 dist/
-src/LRphase.egg-info/
+src/HaplotagLR.egg-info/
+src/HaplotagLR/__pycache__
+*~

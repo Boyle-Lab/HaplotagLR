@@ -7,7 +7,7 @@ from typing import Any, List
 import pysam
 import numpy as np
 
-import LRphase.HeterozygousSites as HeterozygousSite
+from HaplotagLR import HeterozygousSites
 
 # Minimum floating-point value > 0
 # See http://www.seunosewa.com/2009/06/floating-point-min-max.html
@@ -57,7 +57,7 @@ _multcoeff_cache = {}
 def _multcoeff(n_match, n_mismatch):
     """
     Calculates multinomial coefficient according to the formula
-    n! / ((n-m)! * m!)  (As described in the LRphase article)
+    n! / ((n-m)! * m!)  (As described in the HaplotagLR article)
     where n = the total number of heterozygous sites in a region 
     (n_match + n_mismatch) and m = the number of heterozygous sites
     matching the given haplotype (n_match). Values are cached to
@@ -232,18 +232,18 @@ def _calculate_local_per_base_mismatch_rate(aligned_segment, gapped_alignment_po
 
 
 def _count_matches(
-        read_bases: object, phased_alleles: object,
+        read_bases: object, tagged_alleles: object,
         read_base_error_rates: object = None, per_base_error_rate: float = None,
         multinomial_correction: object = None, pseudocount: float = 0.001
         ) -> object:
     """
     # self.log_probability_read_given_haplotype_i, self.non_matches, self.matches, self.total_hets,
-    self.total_hets_analyzed, self.ploidy_phase_set = self._count_matches(self.read_bases, self.phased_alleles,
+    self.total_hets_analyzed, self.ploidy_phase_set = self._count_matches(self.read_bases, self.tagged_alleles,
     self.read_base_error_rates, self.error_model)
 
     Args:
         read_bases:
-        phased_alleles:
+        tagged_alleles:
         read_base_error_rates:
         multinomial_correction:
 
@@ -281,15 +281,15 @@ def _count_matches(
         try:
             error_log_prob = math.log10(q / 3)
         except:
-            sys.stderr.write("_count_matches: Math domain error encountered. Args: %s, %s, %s, %s, %s, %s\n" % (read_bases, phased_alleles, read_base_error_rates, per_base_error_rate, multinomial_correction, pseudocount))
+            sys.stderr.write("_count_matches: Math domain error encountered. Args: %s, %s, %s, %s, %s, %s\n" % (read_bases, tagged_alleles, read_base_error_rates, per_base_error_rate, multinomial_correction, pseudocount))
             # For debugging purposes, return and flag one of the values with something we never expect to see otherwise:
             return 9999999999999999999999999, non_matches, matches, total_hets, total_hets_analyzed, ploidy_phase_set
             error_log_prob = math.log10(sys.float_info.min)
 
-    # print(read_bases, phased_alleles, read_base_error_rates, error_model)
+    # print(read_bases, tagged_alleles, read_base_error_rates, error_model)
     for i in range(len(read_bases)):
         read_base = read_bases[i]
-        ploidy = len(phased_alleles[i])
+        ploidy = len(tagged_alleles[i])
         ploidy_list.append(ploidy)
         
         if not read_base == '-': # Skip gap positions
@@ -305,7 +305,7 @@ def _count_matches(
             of this loop produces correct and consistent scores. However, this should be modified in
             future releases to calculate correct scores given all types of potential variants. In
             short, I'm leaving this as-is for now and relying on only simple SNPs being passed in
-            in phased_alleles.
+            in tagged_alleles.
             """
             if read_base_error_rates is not None:
                 """
@@ -331,10 +331,10 @@ def _count_matches(
                 ## TO-DO: calculate read-specific generalized multinomial coefficient
                 
             for haplotype in range(0, ploidy):
-                if len(phased_alleles[i][haplotype]) > 1:  # Probably to exclude indels/rearrangements
+                if len(tagged_alleles[i][haplotype]) > 1:  # Probably to exclude indels/rearrangements
                     continue
                 total_hets_analyzed += 0.5  # These are counted twice. Should prob be 1/ploidy instead of hard-coded 0.5.
-                if read_base == phased_alleles[i][haplotype]:
+                if read_base == tagged_alleles[i][haplotype]:
                     log_probability_read_given_haplotype_i[haplotype] += match_log_prob
                     matches[haplotype] += 1
                 else:
@@ -503,11 +503,12 @@ class PhaseSet:
     
     def __init__(
             self, phase_set, aligned_segment, vcf_records, sample, error_model = 0, error_rate_threshold = 0.01,
-            multinomial_correction = True, prior_probabilities = None, liftover_converters = None, phase = 'Nonphasable',
+            multinomial_correction = True, prior_probabilities = None, liftover_converters = None, tag = 'Nontaggable',
             powlaw_alpha = 4.5, powlaw_xmin = 2, use_complex_variants = False, use_gap_variants = False
             ):
         self.aligned_segment = aligned_segment
         self.phase_set = phase_set
+        self.ploidy_phase_set = None
         self.vcf_records = vcf_records
         if liftover_converters:
             self.liftover_converters = liftover_converters
@@ -521,11 +522,12 @@ class PhaseSet:
         self.multinomial_correction = multinomial_correction
         self.gapped_alignment_positions = []
         self.read_bases = []
-        self.phased_alleles = []
+        self.tagd_alleles = []
         self.reference_positions = []
+        self.log_likelihood_ratios = []
         self.max_log_likelihood_ratio = None
         self.max_phase = None
-        self.phase = phase
+        self.tag = tag
         self.powlaw_alpha = powlaw_alpha
         self.powlaw_xmin = powlaw_xmin
         
@@ -587,6 +589,7 @@ class PhaseSet:
         Returns:
 
         """
+        #sys.stderr.write("PS 592: %s\n" % (self))
         if prior_probabilities is None:
             prior_probabilities = self.prior_probabilities
         if not self.aligned_segment.is_unmapped or self.aligned_segment.is_aligned_to_contig_not_in_vcf:
@@ -617,11 +620,12 @@ class PhaseSet:
                         self.per_base_mismatch_rate,
                         multinomial_correction
                     )
+                    #sys.stderr.write("PS 622: %s, %s %s, %s, %s, %s\n" % (self.log_probability_read_given_haplotype_i, self.non_matches, self.matches, self.total_hets, self.total_hets_analyzed, self.ploidy_phase_set))
                     # This is to watch for debug info from a log10(0) error:
                     if self.log_probability_read_given_haplotype_i == 9999999999999999999999999:
                         sys.stderr.write("%s\n" % (self.aligned_segment))
                     
-                    self.log_likelihood_ratios, self.phase, self.max_phase, self.max_log_likelihood_ratio = _phasing_decision(
+                    self.log_likelihood_ratios, self.tag, self.max_phase, self.max_log_likelihood_ratio = _phasing_decision(
                         self.log_probability_read_given_haplotype_i,
                         self.ploidy_phase_set,
                         prior_probabilities,
@@ -658,9 +662,9 @@ class PhaseSet:
                     self.max_log_likelihood_ratio = max(self.log_likelihood_ratios)
                     self.max_phase = self.log_likelihood_ratios.index(self.max_log_likelihood_ratio) + 1
                     if self.max_log_likelihood_ratio > self.error_rate_threshold:
-                        self.phase = self.max_phase
+                        self.tag = self.max_phase
                     else:
-                        self.phase = 'Unphased'
+                        self.tag = 'Untagged'
                     self.total_hets = len(hets)
                     self.total_hets_analyzed = len(hets)
                     
@@ -755,7 +759,7 @@ def _phasing_decision(
         error_rate_threshold, total_hets_analyzed, powlaw_alpha = 4.5, powlaw_xmin = 2,
         minfloat = log10minfloat
         ) -> object:
-    """# self.log_likelihood_ratios, self.phase, self.max_phase, self.max_log_likelihood_ratio =
+    """# self.log_likelihood_ratios, self.tag, self.max_phase, self.max_log_likelihood_ratio =
     self._phasing_decision(self.log_probability_read_given_haplotype_i, self.ploidy_phase_set,
     self.prior_probabilities, self.error_rate_threshold)
 
@@ -767,11 +771,11 @@ def _phasing_decision(
         total_hets_analyzed: """
     
     if total_hets_analyzed == 0:
-        phase = 'Nonphasable'
+        tag = 'Nontaggable'
         log_likelihood_ratios = None
         max_log_likelihood_ratio: float = None
-        max_phase = 'Nonphasable'
-        return log_likelihood_ratios, phase, max_phase, max_log_likelihood_ratio
+        max_phase = 'Nontaggable'
+        return log_likelihood_ratios, tag, max_phase, max_log_likelihood_ratio
     
     else:
         log_likelihood_ratios = []
@@ -808,15 +812,15 @@ def _phasing_decision(
         #sys.stderr.write("%s\n" % (log_likelihood_ratios))
         max_log_likelihood_ratio = max(log_likelihood_ratios)
         if max_log_likelihood_ratio == 0:
-            phase = 'Unphased'
+            tag = 'Untagged'
             max_phase = 0
         else:
             max_phase = log_likelihood_ratios.index(max_log_likelihood_ratio) + 1
 #AB - this is a hard coded use of error rate instead of log likihood
 #            if powlaw_modified(max_log_likelihood_ratio, a=powlaw_alpha, xmin=powlaw_xmin) <= error_rate_threshold:
                 # if max_log_likelihood_ratio >= 10 ** (math.log10((error_rate_threshold / .5491)) / -2.45):
-            phase = max_phase
+            tag = max_phase
 #            else:
-#                phase = 'Unphased'
+#                tag = 'Untagged'
         
-        return [log_likelihood_ratios, phase, max_phase, max_log_likelihood_ratio]
+        return [log_likelihood_ratios, tag, max_phase, max_log_likelihood_ratio]

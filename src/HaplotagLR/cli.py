@@ -1,32 +1,32 @@
 # coding=utf-8
 
 import sys, os, re
-#from argparse import ArgumentParser, Namespace, _ArgumentGroup, _SubParsersAction
 import argparse
-from LRphase.SimulatePhasedData import *
-from LRphase.InputData import *
-from LRphase import urls
 from pysam import AlignmentFile, VariantFile
 import numpy as np
 from scipy.stats import nbinom
 import powerlaw
 import time
-from LRphase.PhaseSet import powlaw_modified, _estimate_prior_probabilities
+
+from HaplotagLR.PhaseSet import powlaw_modified, _estimate_prior_probabilities
+#from HaplotagLR.SimulatePhasedData import *
+from HaplotagLR.InputData import *
+from HaplotagLR import urls
 
 __version__ = "1.1.3"
 
 # TO-DO:
-## The main phasing function should be a wrapper that loops over samples
+## The main haplotagging function should be a wrapper that loops over samples
 # in the input VCF. Content of the current function should be moved out
 # and called once per sample in the VCF, unless args.one_sample is given.
 #@profile
-def phasing(args):
-    """Main function for phasing mode
+def haplotag(args):
+    """Main function for haplotag mode
 
     Args:
         args:
     """
-    sys.stderr.write('\nAnalyzing inputs using phasing mode...\n\n')
+    sys.stderr.write('\nAnalyzing inputs using haplotag mode...\n\n')
     #sys.stderr.write("%s\n" % args)
     # Input data initialization currently ignores much of the content of args. May be a good idea to fix this.
     # TO-DO: Need to actually handle VCF samples properly instead of relying on args.one_sample.
@@ -52,24 +52,26 @@ def phasing(args):
     except OSError as e:
         sys.stderr.write("%s\n" % e())
         exit(2)
-    sys.stderr.write("Phasing reads...\n")
+    sys.stderr.write("Haplotagging reads...\n")
     i=0
     for phasable_sample in input_data:
         sys.stderr.write('Processing alignments for sample %d (%s)...\n' % (i, phasable_sample.sample))
-        header_template_file = AlignmentFile(phasable_sample.alignment_file_paths[i], 'rb')
+
+        # Get the BAM header from the current file. This is needed for some pysam operations.
+        header_template_file = AlignmentFile(phasable_sample.alignment_file_paths[0], 'rb')
 
         # Instantiate output file(s)
         output_streams = {}
         if args.output_mode == 'combined':
-            output_streams["combined_output_bam"] = AlignmentFile('%s/%s.combined_phasing_results.bam' % (args.output_directory_name, phasable_sample.sample),
+            output_streams["combined_output_bam"] = AlignmentFile('%s/%s.combined_haplotagging_results.bam' % (args.output_directory_name, phasable_sample.sample),
                                                                   'wb', template = header_template_file)
         else:
-            output_streams["unphased_output_bam"] = AlignmentFile('%s/%s.unphased.bam' %  (args.output_directory_name, phasable_sample.sample),
+            output_streams["unphased_output_bam"] = AlignmentFile('%s/%s.untagged.bam' %  (args.output_directory_name, phasable_sample.sample),
                                                                   'wb', template = header_template_file)
-            output_streams["nonphasable_output_bam"] = AlignmentFile('%s/%s.nonphasable.bam' %  (args.output_directory_name, phasable_sample.sample),
+            output_streams["nonphasable_output_bam"] = AlignmentFile('%s/%s.nontaggable.bam' %  (args.output_directory_name, phasable_sample.sample),
                                                                      'wb', template = header_template_file)
             if args.output_mode == 'phase_tagged':
-                output_streams["phased_output_bam"] = AlignmentFile('%s/%s.phase_tagged.bam' %  (args.output_directory_name, phasable_sample.sample),
+                output_streams["phased_output_bam"] = AlignmentFile('%s/%s.haplotagged.bam' %  (args.output_directory_name, phasable_sample.sample),
                                                                     'wb', template = header_template_file)
             elif args.output_mode == 'full':
                 output_streams["maternal_output_bam"] = AlignmentFile('%s/%s.maternal.bam' %  (args.output_directory_name, phasable_sample.sample),
@@ -77,7 +79,7 @@ def phasing(args):
                 output_streams["paternal_output_bam"] = AlignmentFile('%s/%s.paternal.bam' %  (args.output_directory_name, phasable_sample.sample),
                                                                       'wb', template = header_template_file)
 
-        # For the negative-binomial phasing error model, we need to store phased reads for post-processing.
+        # For the negative-binomial haplotag error model, we need to store phased reads for post-processing.
         phased_reads_list = []
                 
         # Phase reads and write output to approriate file(s)
@@ -89,22 +91,23 @@ def phasing(args):
                                      powlaw_xmin = args.powlaw_xmin,
                                      multinomial_correction = args.multinomial_correction
             )
+            #sys.stderr.write("%s\n" % (phased_read))
 
             # Make sure reads are tagged appropriately, according to output options.
-            if args.add_phasing_tag_to_output:
+            if args.add_phase_tag_to_output:
                 # Tag with estimated error rate based on fitted power-law model.
-                phased_read.aligned_segment.set_tag(tag = 'ER', value = str(phased_read.phasing_error_rate), value_type='Z', replace=True)
-                if phased_read.is_phased:
-                    if (args.log_likelihood_threshold >= 0 and phased_read.log_likelihood_ratio >= args.log_likelihood_threshold) or phased_read.phasing_error_rate <= args.error_rate_threshold:
+                phased_read.aligned_segment.set_tag(tag = 'ER', value = str(phased_read.haplotag_error_rate), value_type='Z', replace=True)
+                if phased_read.is_tagged:
+                    if (args.log_likelihood_threshold >= 0 and phased_read.log_likelihood_ratio >= args.log_likelihood_threshold) or phased_read.haplotag_error_rate <= args.error_rate_threshold:
                         # Phased read passing the error rate/score threshold.
-                        phased_read.aligned_segment.set_tag(tag = 'HP', value = str(phased_read.phase), value_type='Z', replace=True)
+                        phased_read.aligned_segment.set_tag(tag = 'HP', value = str(phased_read.tag), value_type='Z', replace=True)
                     else:
-                        # Phasing score does not pass threshold. Label as unphased.
-                        phased_read.aligned_segment.set_tag(tag = 'HP', value = "Unphased", value_type='Z', replace=True)
-                elif phased_read.is_Unphased:
-                    phased_read.aligned_segment.set_tag(tag = 'HP', value = "Unphased", value_type='Z', replace=True)
+                        # Haplotag score does not pass threshold. Label as unphased.
+                        phased_read.aligned_segment.set_tag(tag = 'HP', value = "Untagged", value_type='Z', replace=True)
+                elif phased_read.is_Untagged:
+                    phased_read.aligned_segment.set_tag(tag = 'HP', value = "Untagged", value_type='Z', replace=True)
                 else: # Nonphasable
-                    phased_read.aligned_segment.set_tag(tag = 'HP', value = "nonphasable", value_type='Z', replace=True)
+                    phased_read.aligned_segment.set_tag(tag = 'HP', value = "Nontaggable", value_type='Z', replace=True)
 
             # Write output to appropriate destination file(s). All unphased/nonphasable reads
             # can be processed immediately. If not using the negative binomial error model,
@@ -113,10 +116,10 @@ def phasing(args):
             if args.FDR_threshold <= 0 or not phased_read.is_phased:
                 write_bam_output(phased_read, output_streams, args)
             else:
-                # Read is phased and we are using the negative-binomial phasing error model.
+                # Read is phased and we are using the negative-binomial haplotag error model.
                 phased_reads_list.append(phased_read)
                 
-        # Post-process phased reads to set FDR with the negative-binomial phasing
+        # Post-process phased reads to set FDR with the negative-binomial haplotag
         # error model.
         if args.FDR_threshold > 0:
             # We need to:
@@ -142,13 +145,13 @@ def phasing(args):
 def trim_phased_reads_to_fdr_neg_binom(phased_reads_list, FDR_threshold, output_streams, args):
     """
     Given a list of phased reads, control FDR at the given level
-    by calculating the expected number of phasing errors based on
-    a negative binomial model. Phasing decisions can be considered 
+    by calculating the expected number of haplotag errors based on
+    a negative binomial model. Haplotag decisions can be considered 
     Bernoulli trials with Psuccess = 1-(𝜀/3). Thus, the error 
     distribution may be modeled as negative binomial with N = the 
     number of phaseable reads. To control the error rate at any 
     given FDR, we use the mean of this distribution, N𝜀, as the 
-    expected number of phasing errors, and reassign the N𝜀* (1-FDR)
+    expected number of haplotag errors, and reassign the N𝜀* (1-FDR)
     lowest-scoring reads as “unphased.”
     """
     r = get_average_seq_error_rate(phased_reads_list)
@@ -157,14 +160,14 @@ def trim_phased_reads_to_fdr_neg_binom(phased_reads_list, FDR_threshold, output_
     E = get_expected_error_count_neg_binom(n, p)
     e = round(E * (1-FDR_threshold))
     #sys.stderr.write('p: %.5f, n: %d, E: %d, e: %d, FDR: %.5f\n' % (p, n, E, e, FDR_threshold))
-    sys.stderr.write('Negative-binomial error distribution params:\nAvg. Seq. Error Rate: %.5f, Neg. Binom. p: %.5f, phased read count: %d, estimated error count: %d, FDR: %.5f\n' % (r, p, n, e, FDR_threshold))
+    sys.stderr.write('Negative-binomial error distribution params:\nAvg. Seq. Error Rate: %.5f, Neg. Binom. p: %.5f, haplotagged read count: %d, estimated error count: %d, FDR: %.5f\n' % (r, p, n, e, FDR_threshold))
     sorted_reads_list = sort_reads_list(phased_reads_list)
-    sys.stderr.write('Reassigning %d phased reads with the lowest log-likelihood ratios as Unphased to control FDR at %.2f...\n' % (e, FDR_threshold)) 
+    sys.stderr.write('Reassigning %d haplotagged reads with the lowest log-likelihood ratios as Untagged to control FDR at %.2f...\n' % (e, FDR_threshold)) 
     for i, phased_read in enumerate(sorted_reads_list):
         if i < e:
             # Relabel the first e observations as Unphased.
             phased_read.PhaseSet_max.phase = 'Unphased'
-            phased_read.aligned_segment.set_tag(tag = 'HP', value = "Unphased", value_type='Z', replace=True)
+            phased_read.aligned_segment.set_tag(tag = 'HP', value = "Untagged", value_type='Z', replace=True)
         #sys.stderr.write("%s: %s, %s\n" % (phased_read.query_name, phased_read.PhaseSet_max.phase, phased_read.PhaseSet_max.max_log_likelihood_ratio))
         write_bam_output(phased_read, output_streams, args)
     
@@ -235,11 +238,11 @@ def write_phase_tagged_bam_output(phased_read, phased_output_bam,
 
     """
     if phased_read.is_phased:
-        if (args.log_likelihood_threshold >= 0 and phased_read.log_likelihood_ratio >= args.log_likelihood_threshold) or phased_read.phasing_error_rate <= args.error_rate_threshold:
+        if (args.log_likelihood_threshold >= 0 and phased_read.log_likelihood_ratio >= args.log_likelihood_threshold) or phased_read.haplotag_error_rate <= args.error_rate_threshold:
             # Phased read passing the error-rate/score threshold.
             phased_read.write_to_bam(output_bam_pysam = phased_output_bam)
         else:
-            # Phasing score does not pass threshold. Treat as unphased.
+            # Haplotag score does not pass threshold. Treat as unphased.
             phased_read.write_to_bam(output_bam_pysam = unphased_output_bam)
     elif phased_read.is_Unphased:
         phased_read.write_to_bam(output_bam_pysam = unphased_output_bam)
@@ -256,13 +259,13 @@ def write_full_bam_output(phased_read, maternal_output_bam, paternal_output_bam,
     """
     # TO-DO: Need to handle all possible levels of ploidy.
     if phased_read.is_phased:
-        if (args.log_likelihood_threshold >= 0 and phased_read.log_likelihood_ratio >= args.log_likelihood_threshold) or phased_read.phasing_error_rate <= args.error_rate_threshold:
+        if (args.log_likelihood_threshold >= 0 and phased_read.log_likelihood_ratio >= args.log_likelihood_threshold) or phased_read.haplotag_error_rate <= args.error_rate_threshold:
             if phased_read.phase == 1:
                 phased_read.write_to_bam(output_bam_pysam = paternal_output_bam)
             else:
                 phased_read.write_to_bam(output_bam_pysam = maternal_output_bam)
         else:
-            # Phasing score does not pass threshold. Label as unphased and handle accordingly.
+            # Haplotag score does not pass threshold. Label as unphased and handle accordingly.
             phased_read.write_to_bam(output_bam_pysam = unphased_output_bam)
     elif phased_read.is_Unphased:
         phased_read.write_to_bam(output_bam_pysam = unphased_output_bam)
@@ -392,7 +395,7 @@ def _calculate_error_rate_from_het_count(het_count, sequencing_error_rate, prior
 
 def _calculate_error_rate_table(max_hets, sequencing_error_rate, prior_probs, powlaw_alpha, powlaw_xmin):
     """
-    Precompute empirical phasing error rates across a range of heterozygous count sites.
+    Precompute empirical haplotag error rates across a range of heterozygous count sites.
     Returns a list of error rates for heterozygous site counts from 0 to max_hets. These
     represent the error rates expected given a perfect match to a single phase, given a
     power law distribution with parameters powlaw_alpha and powlaw_xmin.
@@ -559,7 +562,7 @@ def error_analysis(args):
             # TO-DO: This file should be created once and written incrementally with
             # only reads created on this iteration.
             with open(args.output_directory_path + "/error_read_stats.txt", 'w') as outfile:
-                outfile.write("seq_name\tlength\tseq_error_rate_avg\tn_hets\tphase\tn_matches_to_phase\tn_mismatches_to_phase\tlog_likelihood_hap1\tlog_likelihood_hap2\tlog_likelihood_ratio\tphasing_err_rate\n")
+                outfile.write("seq_name\tlength\tseq_error_rate_avg\tn_hets\tphase\tn_matches_to_phase\tn_mismatches_to_phase\tlog_likelihood_hap1\tlog_likelihood_hap2\tlog_likelihood_ratio\thaplotag_err_rate\n")
                 for err_read in error_read_list:
                     sys.stderr.write("%s\n" % (err_read.PhaseSet_max))
                     err_rate_mean = 0
@@ -578,7 +581,7 @@ def error_analysis(args):
                         err_read.PhaseSet_max.log_probability_read_given_haplotype_i[0],
                         err_read.PhaseSet_max.log_probability_read_given_haplotype_i[1],
                         err_read.log_likelihood_ratio,
-                        err_read.phasing_error_rate
+                        err_read.haplotag_error_rate
                     ))
             
         # The rest of the kludge for using args.simulation_min_err_obs to control simulations:
@@ -679,8 +682,8 @@ def simulate_results_for_iteration(input_data, haplotypes, haplotype_specific_fa
             sys.stderr.write("%s\n" % e)
             continue
         
-        # Extract log-likelihood ratios and phasing results for properly-mapped reads with >= min_het_sites
-        sys.stderr.write("Phasing simulated reads...\n")
+        # Extract log-likelihood ratios and haplotag results for properly-mapped reads with >= min_het_sites
+        sys.stderr.write("Haplotag simulated reads...\n")
         hist_all_i, hist_err_i, bins_i, error_lr_list_i, error_read_list_i = parse_simulated_data(input_data, args)
         for j in range(len(error_lr_list_i)):
             error_lr_list.append(error_lr_list_i[j])
@@ -780,108 +783,112 @@ def parse_simulated_data(input_data, args):
 def getArgs() -> object:
     """Parses arguments:"""
     ################################################################################################################
-    ############## LRphase Arguments ###############################################################################
+    ############## HaplotagLR Arguments ############################################################################
     
-    lrphase_parser: argparse.ArgumentParser = argparse.ArgumentParser(
-        prog = 'LRphase', description = 'Tools for phasing individual long reads using haplotype information.'
+    haplotaglr_parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        prog = 'HaplotagLR', description = 'A tool for haplotagging individual long reads using pre-phased haplotypes.'
     )
     
-    lrphase_parser.add_argument('--version', action = 'version', version = __version__)
+    haplotaglr_parser.add_argument('--version', action = 'version', version = __version__)
 
-    lrphase_subparsers: argparse._SubParsersAction = lrphase_parser.add_subparsers(
-        title = '[LRphase modes]', dest = 'mode', description = 'Choose which mode to run:',
-        help = 'mode must be added as first argument (ex: LRphase phasing)', required = True
+    lrphase_subparsers: argparse._SubParsersAction = haplotaglr_parser.add_subparsers(
+        title = '[HaplotagLR modes]', dest = 'mode', description = 'Choose which mode to run:',
+        help = 'mode must be added as first argument (ex: HaplotagLR haplotag )', required = True
     )
 
     
     ################################################################################################################
-    ############## Phasing Mode Arguments ##########################################################################
+    ############## Haplotag Mode Arguments #########################################################################
+    """
+    Formerly (incorrectly) called Phasing Mode.
+    """
+
     
-    phasing_parser: argparse.ArgumentParser = lrphase_subparsers.add_parser(
-        'phasing', description = "Tool for phasing individual long reads using haplotype information."
+    haplotag_parser: argparse.ArgumentParser = lrphase_subparsers.add_parser(
+        'haplotag', description = "A tool for haplotagging individual long reads using pre-phased haplotypes."
     )
     
-    ############## Phasing Mode Required Arguments ##############
-    phasing_parser_required: argparse._ArgumentGroup = phasing_parser.add_argument_group('Required', 'Required for phasing')
+    ############## Haplotag Mode Required Arguments ##############
+    haplotag_parser_required: argparse._ArgumentGroup = haplotag_parser.add_argument_group('Required', 'Required for haplotag')
     
-    phasing_parser_required.add_argument(
+    haplotag_parser_required.add_argument(
         '-v', '--vcf', required = True,
-        help = 'Path to vcf file with haplotype information that will be used for phasing. (Must be in .vcf.gz format '
+        help = 'Path to vcf file with pre-phased haplotype data, in VCF format. (Must be in .vcf.gz format '
         'with tabix index in same folder. If .vcf file is provided, bgzip and tabix must be installed and '
-        'available on PATH because LRphase will attempt to convert it.  EX: -v GM12878_haplotype.vcf.gz)',
+        'available on PATH because HaplotagLR will attempt to convert it.  EX: -v GM12878_haplotype.vcf.gz)',
         dest = 'vcf_file_name', metavar = '<VCF_FILE>'
     )
     
-    phasing_parser_required.add_argument(
+    haplotag_parser_required.add_argument(
         '-i', '--input_reads', required = True,
-        help = 'Path to sequencing file (.fasta) or alignment file (.bam or .sam) of long reads that will be used for phasing. If either a .sam file is provided or an index is not found, .sam and .bam file will be sorted and indexed with SAMtools. Sorted.bam files should be in same directory as their index (.sorted.bam.bai). EX: -a data/minion_GM12878_run3.sorted.bam, -i minion_GM12878_run3.sam) Path to long read file in .fastq format that will be used for alignment and phasing (ex: -i minion_GM12878_run3.fastq). **** NOTE: the -r/--reference argument is REQUIRED if using input in fastq format! ****',
+        help = 'Path to sequencing file (.fasta) or alignment file (.bam or .sam) of long reads that will be used for haplotagging. If either a .sam file is provided or an index is not found, .sam and .bam file will be sorted and indexed with SAMtools. Sorted.bam files should be in same directory as their index (.sorted.bam.bai). EX: -a data/minion_GM12878_run3.sorted.bam, -i minion_GM12878_run3.sam) Path to long read file in .fastq format that will be used for alignment and haplotag (ex: -i minion_GM12878_run3.fastq). **** NOTE: the -r/--reference argument is REQUIRED if using input in fastq format! ****',
         #dest = 'long_read_inputs', metavar = 'long-read input file', action = 'append', nargs = '*'
         dest = 'long_read_inputs', metavar = '<SAM/BAM/FASTQ>'
     )
 
-    ############## Phasing Mode Optional Arguments ##############
-    phasing_parser_optional: argparse._ArgumentGroup = phasing_parser.add_argument_group('Optional', 'Useful, but (mostly) not required for phasing.')
+    ############## Haplotag Mode Optional Arguments ##############
+    haplotag_parser_optional: argparse._ArgumentGroup = haplotag_parser.add_argument_group('Optional', 'Useful, but (mostly) not required for haplotagging.')
 
-    phasing_parser_optional.add_argument(
+    haplotag_parser_optional.add_argument(
         '-o', '--output_directory_name', required = False,
         default = '.',
         help = 'Name given to directory where results will be output (ex: -o minion_GM12878_run3_phasing_output)',
         dest = 'output_directory_name', metavar = "</path/to/output>"
     )
     
-    phasing_parser_optional.add_argument(
+    haplotag_parser_optional.add_argument(
         '-r', '--reference', required = False,
         help = 'Path to reference genome sequence file. REQUIRED if -i is used to specify reads in fastq format to be '
-        'aligned prior to phasing. (file types allowed: .fa, .fna, fasta. EX: -r data/reference_hg38.fna)',
+        'aligned prior to haplotagging. (file types allowed: .fa, .fna, fasta. EX: -r data/reference_hg38.fna)',
         dest = 'reference_genome', metavar = '<REF_FASTA>'
     )
     
-    phasing_parser_optional.add_argument(
+    haplotag_parser_optional.add_argument(
         '-A', '--reference_assembly', required = False, default="hg38",
         help = 'Assembly for the reference genome. EX: -A hg38.',
         dest = 'reference_assembly', metavar = '<ASSEMBLY_NAME>'
     )
 
-    phasing_parser_optional.add_argument(
+    haplotag_parser_optional.add_argument(
 	'-t', '--threads', type=int, required=False, default=3,
         help = 'Number of threads to use for mapping and indexing steps.',
         dest = 'threads', metavar = '<THREADS>'
     )
-    phasing_parser_optional.add_argument(
+    haplotag_parser_optional.add_argument(
         '-q', '--quiet', help = 'Output to stderr from subprocesses will be muted.', action = 'store_true', dest = 'quiet_mode'
     )
 
-    phasing_parser_optional.add_argument(
+    haplotag_parser_optional.add_argument(
         '-S', '--silent', help = 'Output to stderr and stdout from subprocesses will be muted.', action = 'store_true', dest = 'silent_mode'
     )
     
     ############## Phasing Mode Output Options ##############
-    phasing_parser_output: argparse._ArgumentGroup = phasing_parser.add_argument_group(
+    haplotag_parser_output: argparse._ArgumentGroup = haplotag_parser.add_argument_group(
         'Output options', 'Options for writing output to BAM file(s).'
     )
 
-    phasing_parser_output.add_argument(
+    haplotag_parser_output.add_argument(
         '-H', '--omit_phasing_tag',
         #help = 'Do not tag reads with "HP:i:1" (maternal) and "HP:i:2" (paternal) tags to indicate phase assignments.',
         help=argparse.SUPPRESS,
-        dest = 'add_phasing_tag_to_output', action = 'store_false'
+        dest = 'add_phase_tag_to_output', action = 'store_false'
     )
     
-    phasing_parser_output.add_argument(
+    haplotag_parser_output.add_argument(
         '-P', '--omit_phase_set_tag',
         #help = 'Do not tag reads with "PS:i:x" tags, which label reads according to the phase set that was indicated in the vcf record used to assign a read to a phase.',
         help=argparse.SUPPRESS,
         dest = 'add_phase_set_tag_to_ouput', action = 'store_false'
     )
 
-    phasing_parser_output.add_argument(
+    haplotag_parser_output.add_argument(
         '-Q', '--omit_phasing_quality_tag',
         #help = 'Do not tag reads with "PC:i:x" tags, where x is an estimate of the accuracy of the phasing assignment in phred-scale.',
         help=argparse.SUPPRESS,
         dest = 'add_phasing_quality_tag_to_output', action = 'store_false'
     )
 
-    phasing_parser_output.add_argument(
+    haplotag_parser_output.add_argument(
         '-O', '--output_mode', type=str, required=False, default="combined",
         choices=['combined', 'phase_tagged', 'full'],
         help = 'Specify whether/how phased, unphased, and nonphasable reads are printed to output. Modes available:\n\tcombined: All reads will be written to a common output file. The phasing tag (HP:i:N) can be used to extract maternal/paternal phased reads, unphased reads, and nonphasable reads.\n\tphase_tagged: Phased reads for both maternal and paternal phases will be written to a single output file, while unphased and nonphasable reads will be written to their own respective output files.\n\tfull: Maternal, paternal, unphased, and nonphasable reads will be printed to separate output files.',
@@ -889,21 +896,21 @@ def getArgs() -> object:
     )
 
     ############## Multiple sample handling/phase set options for phasing mode ##############
-    #phasing_parser_multiple_sample = phasing_parser.add_argument_group(
+    #haplotag_parser_multiple_sample = haplotag_parser.add_argument_group(
     #    'Sample options',
     #    'Phasing options for files containing multiple samples or haplotypes. By default the input files are assumed to belong to the same haplotype and from the same sample. '
     #)
     
-    #phasing_parser_multiple_sample.add_argument(
-    phasing_parser_output.add_argument(
+    #haplotag_parser_multiple_sample.add_argument(
+    haplotag_parser_output.add_argument(
         '-s', '--one_sample', required = False,
         #help = 'Use the --one_sample option to phase a specific sample present in the input reads and vcf file. (-s HG001)',
         help=argparse.SUPPRESS,
         metavar = '<SAMPLE_NAME>'
     )
     
-    #phasing_parser_multiple_sample.add_argument(
-    phasing_parser_output.add_argument(
+    #haplotag_parser_multiple_sample.add_argument(
+    haplotag_parser_output.add_argument(
         '--ignore_samples',
         #help = 'Use the --ignore_samples option to ignore sample labels. The first sample column in the VCF will be used and reads will not be matched using RG tags, samples, or phase sets.',
         help=argparse.SUPPRESS,
@@ -911,12 +918,12 @@ def getArgs() -> object:
     )
     
     ############## Statistical and error options for phasing mode ##############
-    phasing_parser_stats_error: argparse._ArgumentGroup = phasing_parser.add_argument_group(
+    haplotag_parser_stats_error: argparse._ArgumentGroup = haplotag_parser.add_argument_group(
         'Statistical options for phasing model',
         'Options to modify thresholds and error parameters involved in phasing decisions.'
     )
 
-    phasing_parser_stats_error.add_argument(
+    haplotag_parser_stats_error.add_argument(
         '-F', '--FDR_threshold',
         type = float,
         required = False,
@@ -924,7 +931,7 @@ def getArgs() -> object:
         help = 'Control the false discovery rate at the given value using a negative-binomial estimate of the number of phasing errors (N) given the average per-base sequencing error rate observed among all phaseable reads. Phased reads are sorted by their observed log-likelihood ratios and the bottom N*(1-FDR) reads will be reassigned to the "Unphased" set. Set this to zero to skip this step and return all phasing predictions. Default = 0.'
     )
 
-    phasing_parser_stats_error.add_argument(
+    haplotag_parser_stats_error.add_argument(
         # Until the generalized multinomial coefficient is implemented, error models
         # other than the default (0) will not produce valid probabilities. 
         '--sequencing_error_model',
@@ -941,18 +948,18 @@ def getArgs() -> object:
     # defaults set to disable filtering of results based on powerlaw error rate
     # estimates. -E 1.0 stipulates that no predictions will be tossed out based on
     # empirical error rates, which should not exceed 0.5.
-    phasing_parser_stats_error.add_argument(
+    haplotag_parser_stats_error.add_argument(
         '-E', '--error_rate_threshold',
         type = float,
         required = False,
         #default = 0.01,
         default = 1.0,
-        #help = 'Error rate threshold on phasing results. This threshold equates to the estimated phasing error rate for an experiment, such that a threshold of 0.05 should be equivalent to a 5%% false-discovery rate. This rate is estimated based on a fitted power-law distribution with alpha and xmin parameters supplied with the --powlaw_alpha and --powlaw_xmin options. These parameters may be estimated by running the LRphase error_analysis mode.',
+        #help = 'Error rate threshold on phasing results. This threshold equates to the estimated phasing error rate for an experiment, such that a threshold of 0.05 should be equivalent to a 5%% false-discovery rate. This rate is estimated based on a fitted power-law distribution with alpha and xmin parameters supplied with the --powlaw_alpha and --powlaw_xmin options. These parameters may be estimated by running the HaplotagLR error_analysis mode.',
         help=argparse.SUPPRESS,
         dest = 'error_rate_threshold', metavar = '<MAX_ERROR_RATE>'
     )
 
-    phasing_parser_stats_error.add_argument(
+    haplotag_parser_stats_error.add_argument(
         '--log_likelihood_threshold',
         type = float,
         required = False,
@@ -961,7 +968,7 @@ def getArgs() -> object:
         metavar = '<MIN_LIKELIHOOD_RATIO>'
     )
 
-    phasing_parser_stats_error.add_argument(
+    haplotag_parser_stats_error.add_argument(
         #This option is permanently disabled!
         #When using sequencing error models other than the default (shared error rate 
         #across all positions in a read), we need this coefficient to produce valid
@@ -975,33 +982,33 @@ def getArgs() -> object:
         dest = 'multinomial_correction'
     )
 
-    phasing_parser_stats_error.add_argument(
+    haplotag_parser_stats_error.add_argument(
         '--powlaw_alpha', type = float, required = False, default = 5.4,
-        #help = 'Alpha parameter for the fitted power law distribition used in error-rate calculations. This can be obtained by running LRphase error_analysis mode. Default = 5.4',
+        #help = 'Alpha parameter for the fitted power law distribition used in error-rate calculations. This can be obtained by running HaplotagLR error_analysis mode. Default = 5.4',
         help=argparse.SUPPRESS,
         dest = 'powlaw_alpha', metavar="<ALPHA>"
     )
 
-    phasing_parser_stats_error.add_argument(
+    haplotag_parser_stats_error.add_argument(
         '--powlaw_xmin', type = float, required = False, default = 4.3,
-        #help = 'Xmin parameter for the fitted power law distrubution used in error-rate calculations. This can be obtained by running LRphase error_analysis mode. Default = 4.3',
+        #help = 'Xmin parameter for the fitted power law distrubution used in error-rate calculations. This can be obtained by running HaplotagLR error_analysis mode. Default = 4.3',
         help=argparse.SUPPRESS,
         dest = 'powlaw_xmin', metavar = '<XMIN>'
     )
 
-    phasing_parser.set_defaults(func = phasing)
+    haplotag_parser.set_defaults(func = haplotag)
 
     
     """
     # Since it is not clear how to evaluate the empirical phasing error rate without the powerlaw
     # approximation, which has proven difficult to reliably attain, this mode is not discussed in
-    # the 2022 manuscript. Therefore, this mode is disabled in the current (1.X) released versions.
+     # the 2022 manuscript. Therefore, this mode is disabled in the current (1.X) released versions.
     #########################################################################################################################
     ############## Phasability Mode Arguments ###############################################################################
     
     phasability_parser = lrphase_subparsers.add_parser(
         'phasability',
-        description = 'Tool that uses haplotype information as input and outputs predictions for how well LRphase will perform for a sequencing dataset with a given N50 and sequencing error rate. Phasability is defined as the probability of correctly phasing a read of width W that matches all variants in a single phase, calculated as (1 - empirical_phasing_error_rate) for any window of width W. Overlapping windows of width W are slid along the genome at intervals of step size S and results are reported in fixed-step wig format. Individual bins in the wig file describe phasability for the W-width window starting at the leftmost position of the bin.  Can be used to evaluate phasability genome-wide or at optional regions.'
+        description = 'Tool that uses haplotype information as input and outputs predictions for how well HaplotagLR will perform for a sequencing dataset with a given N50 and sequencing error rate. Phasability is defined as the probability of correctly phasing a read of width W that matches all variants in a single phase, calculated as (1 - empirical_phasing_error_rate) for any window of width W. Overlapping windows of width W are slid along the genome at intervals of step size S and results are reported in fixed-step wig format. Individual bins in the wig file describe phasability for the W-width window starting at the leftmost position of the bin.  Can be used to evaluate phasability genome-wide or at optional regions.'
     )
     
     ############## Phasability Mode Required Arguments ##############
@@ -1019,7 +1026,7 @@ def getArgs() -> object:
         '-v', '--vcf', required = True,
         help = 'Path to vcf file with haplotype information that will be used for phasability analysis. (Must be in '
         '.vcf.gz format with tabix index in same folder. If .vcf file is provided, bgzip and tabix must be '
-        'installed and available on PATH because LRphase will attempt to convert it. EX: -v '
+        'installed and available on PATH because HaplotagLR will attempt to convert it. EX: -v '
         'GM12878_haplotype.vcf.gz)',
         dest = 'vcf_file_name', metavar = '<VCF_FILE>'
     )
@@ -1053,13 +1060,13 @@ def getArgs() -> object:
     
     phasability_parser_optional.add_argument(
         '--powlaw_alpha', type = float, required = False, default = 4.5,
-        help = 'Alpha parameter for the fitted power law distribition used in error-rate calculations. This can be obtained by running LRphase error_analysis mode. Default = 4.5',
+        help = 'Alpha parameter for the fitted power law distribition used in error-rate calculations. This can be obtained by running HaplotagLR error_analysis mode. Default = 4.5',
         dest = 'powlaw_alpha', metavar="<ALPHA>"
     )
 
     phasability_parser_optional.add_argument(
         '--powlaw_xmin', type = float, required = False, default = 2.0,
-        help = 'Xmin parameter for the fitted power law distrubution used in error-rate calculations. This can be obtained by running LRphase error_analysis mode. Default = 2.0',
+        help = 'Xmin parameter for the fitted power law distrubution used in error-rate calculations. This can be obtained by running HaplotagLR error_analysis mode. Default = 2.0',
         dest = 'powlaw_xmin', metavar = '<XMIN>'
     )
     
@@ -1087,7 +1094,7 @@ def getArgs() -> object:
     
     error_analysis_parser = lrphase_subparsers.add_parser(
         'error_analysis',
-        description = 'Tool for estimating error rates in a dataset given a (set of) haplotype(s) and a reference genome. Simulated reads with known phase are generated based on the inputs, and processed through the LRphase phasing mode. Results are used to estimate parameters for the powerlaw distribution modeling empirical error rates within the data. (See https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0085777, and http://arxiv.org/abs/0706.1062 for more information.). Results of powerlaw model fittign are written to "simulation_error_model_output.txt" and a text report of error rates across the observed range of log-likelihood ratios is written to "simulation_error_stats.tsv" in the output directory. These files can be used to obtain the optimal parameters for setting thresholds for phasing mode: To use the fitted powerlaw model to set an error-rate based threshold (recommended), the "Fitted powerlaw alpha" and "Corrected powerlaw xmin" within "simulation_error_model_output.txt" represent the recommended values for the --powlaw_alpha and --powlaw_xmin options, respectively. This file also reports "Fitted powerlaw xmin", which is the actual xmin estimate from model fitting. This estimate tends to be systematically low, especially with fewer than 25,000 error observations, thus "Corrected powerlaw xmin" has been adjusted using a linear correction based on sample-size. If you are simulating more than 25,000 observations, you may wish to use the fitted value rather than the corrected value. To set a hard threshold on log-odds scores (NOT recommended), the values within "simulation_error_stats.tsv" can be used to build an eCDF from which a log-odds threshold can be chosen at any desired empirical error rate, which can be supplied to phasing mode using the --error_rate_threshold option.'
+        description = 'Tool for estimating error rates in a dataset given a (set of) haplotype(s) and a reference genome. Simulated reads with known phase are generated based on the inputs, and processed through the HaplotagLR phasing mode. Results are used to estimate parameters for the powerlaw distribution modeling empirical error rates within the data. (See https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0085777, and http://arxiv.org/abs/0706.1062 for more information.). Results of powerlaw model fittign are written to "simulation_error_model_output.txt" and a text report of error rates across the observed range of log-likelihood ratios is written to "simulation_error_stats.tsv" in the output directory. These files can be used to obtain the optimal parameters for setting thresholds for phasing mode: To use the fitted powerlaw model to set an error-rate based threshold (recommended), the "Fitted powerlaw alpha" and "Corrected powerlaw xmin" within "simulation_error_model_output.txt" represent the recommended values for the --powlaw_alpha and --powlaw_xmin options, respectively. This file also reports "Fitted powerlaw xmin", which is the actual xmin estimate from model fitting. This estimate tends to be systematically low, especially with fewer than 25,000 error observations, thus "Corrected powerlaw xmin" has been adjusted using a linear correction based on sample-size. If you are simulating more than 25,000 observations, you may wish to use the fitted value rather than the corrected value. To set a hard threshold on log-odds scores (NOT recommended), the values within "simulation_error_stats.tsv" can be used to build an eCDF from which a log-odds threshold can be chosen at any desired empirical error rate, which can be supplied to phasing mode using the --error_rate_threshold option.'
     )
     
     ############## error_analysis Mode Required Arguments ##############
@@ -1104,7 +1111,7 @@ def getArgs() -> object:
     
     error_analysis_parser_required.add_argument(
         '-v', '--vcf', required = True,
-        help = 'Path to vcf file with haplotype information that will be used for error_analysis. (Must be in .vcf.gz format with tabix index in same folder. If .vcf file is provided, bgzip and tabix must be installed and available on PATH because LRphase will attempt to convert it.  EX: -v GM12878_haplotype.vcf.gz)',
+        help = 'Path to vcf file with haplotype information that will be used for error_analysis. (Must be in .vcf.gz format with tabix index in same folder. If .vcf file is provided, bgzip and tabix must be installed and available on PATH because HaplotagLR will attempt to convert it.  EX: -v GM12878_haplotype.vcf.gz)',
         dest = 'vcf_file_path', metavar = '<VCF_FILE>'
     )
 
@@ -1230,7 +1237,7 @@ def getArgs() -> object:
     
     #####################################################################################################################
     ############## Parse arguments ######################################################################################    
-    args = lrphase_parser.parse_args()
+    args = haplotaglr_parser.parse_args()
     args.func(args)
     return args
 

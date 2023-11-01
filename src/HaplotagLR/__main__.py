@@ -6,7 +6,7 @@ Why does this file exist, and why __main__? For more info, read:
 - https://docs.python.org/2/using/cmdline.html#cmdoption-m
 - https://docs.python.org/3/using/cmdline.html#cmdoption-m
 """
-from LRphase.cli import main
+from HaplotagLR.cli import main
 
 if __name__ == "__main__":
     main()
