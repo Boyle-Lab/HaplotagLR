@@ -44,11 +44,12 @@ Installation from the github repository is not recommended. However, if you must
 HaplotagLR [-h] [--version] [-q] {haplotag,phasability,error_analysis} ...
 ```
 
-HaplotagLR currently only runs in Tagging mode, but may also support more modes in future releases.
-1) Tagging mode: Assigns phase to individual long reads based on variants in a VCF file.
+HaplotagLR currently only offers haplotag mode, but may support more operations in future releases.
+1) Haplotag mode: Haplotags individual long reads based on phased variants in a VCF file. Essentially
+   the reverse operation of read-based phasing.
 
 ### Tagging Mode
-Tool for haplotagging individual long reads using haplotype information.
+Tool for haplotagging individual long reads using phased haplotypes.
 
 ```
 usage: HaplotagLR haplotag [-h] -v <VCF_FILE> -i <SAM/BAM/FASTQ>
@@ -80,7 +81,7 @@ usage: HaplotagLR haplotag [-h] -v <VCF_FILE> -i <SAM/BAM/FASTQ>
 |---|---|
 | __-O {combined,phase_tagged,full}, --output_mode {combined,phase_tagged,full}__ | Specify whether/how phased, unphased, and nonphasable reads are printed to output. Modes available: combined: All reads will be written to a common output file. The phase tag (HP:i:N) can be used to extract maternal/paternal phased reads, unphased reads, and nonphasable reads. phase_tagged: Phased reads for both maternal and paternal phases will be written to a single output file, while unphased and nonphasable reads will be written to their own respective output files. full: Maternal, paternal, unphased, and nonphasable reads will be printed to separate output files. |
 
-#### Statistical Options for Tagging Mode
+#### Statistical Options for Haplotag Mode
 | Argument | Description |
 |---|---|
 | __-F FDR_THRESHOLD, --FDR_threshold FDR_THRESHOLD__ | Control the false discovery rate at the given value using a negative-binomial estimate of the number of haplotagging errors (N) given the average per-base sequencing error rate observed among all phaseable reads. Phased reads are sorted by their observed log-likelihood ratios and the bottom N*(1-FDR) reads will be reassigned to the "Unphased" set. Set this to zero to skip this step and return all haplotagging predictions. Default = 0.|
