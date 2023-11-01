@@ -45,11 +45,10 @@ HaplotagLR [-h] [--version] [-q] {haplotag,phasability,error_analysis} ...
 ```
 
 HaplotagLR currently only offers haplotag mode, but may support more operations in future releases.
-1) Haplotag mode: Haplotags individual long reads based on phased variants in a VCF file. Essentially
-   the reverse operation of read-based phasing.
 
-### Tagging Mode
-Tool for haplotagging individual long reads using phased haplotypes.
+
+### Haplotag Mode
+Tool for haplotagging individual long reads. Haplotags long reads based on phased variants in a VCF file, performing essentially the reverse operation of read-based phasing.
 
 ```
 usage: HaplotagLR haplotag [-h] -v <VCF_FILE> -i <SAM/BAM/FASTQ>
