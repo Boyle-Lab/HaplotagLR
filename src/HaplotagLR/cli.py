@@ -28,10 +28,21 @@ def haplotag(args):
     """
     sys.stderr.write('\nAnalyzing inputs using haplotag mode...\n\n')
     #sys.stderr.write("%s\n" % args)
+    # Check for VCF sample names if -s arg not supplied.
+    sample = args.one_sample
+    if sample is None:
+        sys.stderr.write("WARNING: No sample name supplied with -s. We will use sample name(s) from the VCF input.\n")
+        samples = _get_samples_from_vcf([args.vcf_file_name])
+        if len(samples) > 1:
+            sys.stderr.write("ERROR: VCF contains more than one sample. HaplotagLR currently only supports one sample per VCF.\n")
+            exit(2)
+        sample = samples[0]
+        sys.stderr.write("\tSample name found: %s.\n" % (sample))
+    
     # Input data initialization currently ignores much of the content of args. May be a good idea to fix this.
     # TO-DO: Need to actually handle VCF samples properly instead of relying on args.one_sample.
     input_data = InputData(args.output_directory_name,
-                           sample = args.one_sample,
+                           sample = sample,
                            ignore_samples = args.ignore_samples,
                            reference_sequence_input = args.reference_genome,
                            reference_sequence_input_assembly = args.reference_assembly,
@@ -45,7 +56,7 @@ def haplotag(args):
                                       output_directory = args.output_directory_name)
     try:
         input_data.add_reads(args.long_read_inputs,
-                             sample = args.one_sample,
+                             sample = sample,
                              quiet = args.quiet_mode,
                              silent = args.silent_mode,
                              threads = args.threads)
@@ -141,6 +152,19 @@ def haplotag(args):
         
     return
 
+
+def _get_samples_from_vcf(vcf_file_paths):
+    """
+    Get sample names from VCF sample columns.
+    """
+    samples = []
+    for vcf_file_path in vcf_file_paths:
+        variant_file = pysam.VariantFile(vcf_file_path)
+        for sample in list(variant_file.header.samples):
+            samples.append(sample)
+        variant_file.close()
+    return samples
+    
 
 def trim_phased_reads_to_fdr_neg_binom(phased_reads_list, FDR_threshold, output_streams, args):
     """
@@ -862,7 +886,7 @@ def getArgs() -> object:
         '-S', '--silent', help = 'Output to stderr and stdout from subprocesses will be muted.', action = 'store_true', dest = 'silent_mode'
     )
     
-    ############## Phasing Mode Output Options ##############
+    ############## Haplotag Mode Output Options ##############
     haplotag_parser_output: argparse._ArgumentGroup = haplotag_parser.add_argument_group(
         'Output options', 'Options for writing output to BAM file(s).'
     )
@@ -904,8 +928,7 @@ def getArgs() -> object:
     #haplotag_parser_multiple_sample.add_argument(
     haplotag_parser_output.add_argument(
         '-s', '--one_sample', required = False,
-        #help = 'Use the --one_sample option to phase a specific sample present in the input reads and vcf file. (-s HG001)',
-        help=argparse.SUPPRESS,
+        help = 'Use the --one_sample option to haplotag a specific sample present in the input reads and vcf file. (-s HG001)',
         metavar = '<SAMPLE_NAME>'
     )
     

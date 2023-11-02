@@ -307,7 +307,7 @@ def _count_matches(
             short, I'm leaving this as-is for now and relying on only simple SNPs being passed in
             in tagged_alleles.
             """
-            if read_base_error_rates is not None:
+            if read_base_error_rates is not None:   # Default to actual error rates whenever we can
                 """
                 This scoring mode equates to a generalized multinomial model, where
                 the error probability is allowed to vary from site to site. Therefore,
@@ -318,17 +318,16 @@ def _count_matches(
                 to calculate fractional coefficients for each observed rate and sum the
                 values.                
                 """
-                # Precomputing these does not save time because it still requires
-                # a loop and these are only used once.
                 q = read_base_error_rates[i] + pseudocount
                 if q <= 0:
                     q = sys.float_info.min
-                match_log_prob = math.log10(1-q)
-                try:
-                    error_log_prob = math.log10(q/3)
-                except:
-                    error_log_prob = math.log10(sys.float_info.min)
-                ## TO-DO: calculate read-specific generalized multinomial coefficient
+                    
+            match_log_prob = math.log10(1-q)
+            try:
+                error_log_prob = math.log10(q/3)
+            except:
+                error_log_prob = math.log10(sys.float_info.min)
+            ## TO-DO: calculate read-specific generalized multinomial coefficient
                 
             for haplotype in range(0, ploidy):
                 if len(tagged_alleles[i][haplotype]) > 1:  # Probably to exclude indels/rearrangements
