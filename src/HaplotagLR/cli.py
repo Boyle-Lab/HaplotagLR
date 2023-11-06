@@ -973,7 +973,7 @@ def getArgs() -> object:
         required = False,
         default = False,
         action = 'store_true',
-        help = 'Use this value for the estimated sequencing error rate epsilon. This value will be used instead of calculating per-base error rates from quality scores, and in calculating the FDR threshold value rather than estimating the global mean sequencing error rate. Default = False.'
+        help = 'Calculate per-base error rates directly from Phred scores in the BAM input. Default = False.'
     )
 
     haplotag_parser_stats_error.add_argument(
