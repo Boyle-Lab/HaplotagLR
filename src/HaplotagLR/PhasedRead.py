@@ -212,7 +212,7 @@ class PhasedRead:
             output_file_path = None, liftover_converters = None,
             multinomial_correction = True, auto_tag = True, evaluate_alignment = True,
             evaluate_true_alignment = False, aligned_reference_sequence_path = None,
-            powlaw_alpha = 4.5, powlaw_xmin = 2.0
+            powlaw_alpha = 4.5, powlaw_xmin = 2.0, epsilon = None
     ):
         self.output_file_path = None
         self.liftover_converters = None
@@ -246,6 +246,8 @@ class PhasedRead:
         self.prior_probabilities = prior_probabilities
         self.powlaw_alpha = powlaw_alpha
         self.powlaw_xmin = powlaw_xmin
+
+        self.epsilon = epsilon
 
         # self._get_alignment_label()
         if self.liftover_converters is None:
@@ -428,15 +430,15 @@ class PhasedRead:
         # Het site count
         self.aligned_segment.set_tag(tag = 'HS', value = str(_PhaseSet_max.total_hets), value_type='Z', replace=True)
         # Log-likelihood ratios for all phase sets
-        self.aligned_segment.set_tag(tag = 'LS', value = ','.join([str(n) for n in _PhaseSet_max.log_likelihood_ratios])), value_type='Z', replace=True)
+        self.aligned_segment.set_tag(tag = 'LS', value = ','.join([str(n) for n in _PhaseSet_max.log_likelihood_ratios]), value_type='Z', replace=True)
         # Prior prob. values
-        self.aligned_segment.set_tag(tag = 'PR', value = ','.join([str(n) for n in _PhaseSet_max.prior_probabilities])), value_type='Z', replace=True)
+        self.aligned_segment.set_tag(tag = 'PR', value = ','.join([str(n) for n in _PhaseSet_max.prior_probabilities]), value_type='Z', replace=True)
         # Relative position of variants (from read start)
-        self.aligned_segment.set_tag(tag = 'GP', value = ','.join([str(n) for n in _PhaseSet_max.gapped_alignment_positions])), value_type='Z', replace=True)
+        self.aligned_segment.set_tag(tag = 'GP', value = ','.join([str(n) for n in _PhaseSet_max.gapped_alignment_positions]), value_type='Z', replace=True)
         # Phased alleles (tuples)
-        self.aligned_segment.set_tag(tag = 'PA', value = ','.join([str(n) for n in _PhaseSet_max.phased_alleles])), value_type='Z', replace=True)
+        self.aligned_segment.set_tag(tag = 'PA', value = ','.join([str(n) for n in _PhaseSet_max.phased_alleles]), value_type='Z', replace=True)
         # Observed allele
-        self.aligned_segment.set_tag(tag = 'OA', value = ','.join([str(n) for n in _PhaseSet_max.read_bases])), value_type='Z', replace=True)
+        self.aligned_segment.set_tag(tag = 'OA', value = ','.join([str(n) for n in _PhaseSet_max.read_bases]), value_type='Z', replace=True)
         
         
         return self
@@ -452,14 +454,15 @@ class PhasedRead:
         taggable = {}
         if isinstance(PhaseSets, str):
             return PhaseSet.PhaseSet(None, None, None, None)
-        
+        #sys.stderr.write("PR 457: %s\n" % (error_model))
         if len(PhaseSets) > 0:
             for _PhaseSet in PhaseSets:
                 _PhaseSet.solve_phase(
                     error_model,
                     error_rate_threshold,
                     prior_probabilities,
-                    multinomial_correction
+                    multinomial_correction,
+                    self.epsilon
                 )
                 if isinstance(_PhaseSet.max_log_likelihood_ratio, float):
                     taggable[_PhaseSet.max_log_likelihood_ratio] = _PhaseSet

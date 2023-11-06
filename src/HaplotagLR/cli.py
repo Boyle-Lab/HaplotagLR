@@ -28,6 +28,14 @@ def haplotag(args):
     """
     sys.stderr.write('\nAnalyzing inputs using haplotag mode...\n\n')
     #sys.stderr.write("%s\n" % args)
+
+    # This is a hack to avoid exposing the error modes arg. Instead, if we are to calculate
+    # local error rates from quality scores, we invoke error mode 1 here by setting the
+    # arg manually.
+    if args.epsilon_from_quality_scores:
+        args.error_model = 2
+        #sys.stderr.write("%s\n" % (args.error_model))
+
     # Check for VCF sample names if -s arg not supplied.
     sample = args.one_sample
     if sample is None:
@@ -100,7 +108,10 @@ def haplotag(args):
                                      sample = phasable_sample.sample,
                                      powlaw_alpha = args.powlaw_alpha,
                                      powlaw_xmin = args.powlaw_xmin,
-                                     multinomial_correction = args.multinomial_correction
+                                     multinomial_correction = args.multinomial_correction,
+                                     epsilon = args.epsilon,
+                                     error_model = args.error_model
+                                     
             )
             #sys.stderr.write("%s\n" % (phased_read))
 
@@ -140,7 +151,7 @@ def haplotag(args):
             # 4) Relabel reads with LLR < LLR_LIST[E+1] as unphased
             # 4b) Add tag for Z-score of some sort
             # 5) Print results
-            trim_phased_reads_to_fdr_neg_binom(phased_reads_list, args.FDR_threshold, output_streams, args)
+            trim_phased_reads_to_fdr_neg_binom(phased_reads_list, args.FDR_threshold, output_streams, args, args.epsilon)
                 
         # Close output file(s)(
         for outfile in output_streams.keys():
@@ -166,7 +177,7 @@ def _get_samples_from_vcf(vcf_file_paths):
     return samples
     
 
-def trim_phased_reads_to_fdr_neg_binom(phased_reads_list, FDR_threshold, output_streams, args):
+def trim_phased_reads_to_fdr_neg_binom(phased_reads_list, FDR_threshold, output_streams, args, epsilon=None):
     """
     Given a list of phased reads, control FDR at the given level
     by calculating the expected number of haplotag errors based on
@@ -178,7 +189,9 @@ def trim_phased_reads_to_fdr_neg_binom(phased_reads_list, FDR_threshold, output_
     expected number of haplotag errors, and reassign the N𝜀* (1-FDR)
     lowest-scoring reads as “unphased.”
     """
-    r = get_average_seq_error_rate(phased_reads_list)
+    r = epsilon
+    if r == None:
+        r = get_average_seq_error_rate(phased_reads_list)
     p = 1 - (r / 3)
     n = len(phased_reads_list)
     E = get_expected_error_count_neg_binom(n, p)
@@ -947,6 +960,23 @@ def getArgs() -> object:
     )
 
     haplotag_parser_stats_error.add_argument(
+        '-e', '--epsilon',
+        type = float,
+        required = False,
+        default = None,
+        help = 'Use this value for the estimated sequencing error rate epsilon. This value will be used instead of calculating per-base error rates from quality scores, and in calculating the FDR threshold value rather than estimating the global mean sequencing error rate. Default = None.'
+    )
+
+    
+    haplotag_parser_stats_error.add_argument(
+        '-c', '--epsilon_from_quality_scores',
+        required = False,
+        default = False,
+        action = 'store_true',
+        help = 'Use this value for the estimated sequencing error rate epsilon. This value will be used instead of calculating per-base error rates from quality scores, and in calculating the FDR threshold value rather than estimating the global mean sequencing error rate. Default = False.'
+    )
+
+    haplotag_parser_stats_error.add_argument(
         '-F', '--FDR_threshold',
         type = float,
         required = False,
@@ -955,13 +985,12 @@ def getArgs() -> object:
     )
 
     haplotag_parser_stats_error.add_argument(
-        # Until the generalized multinomial coefficient is implemented, error models
-        # other than the default (0) will not produce valid probabilities. 
         '--sequencing_error_model',
         required = False,
         default = 0,
         choices = [0,1,2],
-        #help = 'Use this option to choose how to estimate sequencing error rates: 0: estimate per-base error rate as an average per read. 1: estimate per-base error rate locally around each het site. 2: Calculate per-base error rate using base quality scores (WARNING: do not use option 2 unless you are sure that the basecaller reported actual error rates).',
+        # NOTE: Mode 1 does not work at present! Do not expose this arg!
+        #help = 'Use this option to choose how to estimate sequencing error rates: 0: estimate per-base error rate as an average per read. 1: estimate per-base error rate locally around each het site. 2: Calculate per-base error rate using base quality scores (WARNING: do not use option 2 unless you are sure that the basecaller reported actual error rates). Default: 0',
         help=argparse.SUPPRESS,
         dest = 'error_model',
         type = int
@@ -1000,8 +1029,8 @@ def getArgs() -> object:
         #should never be used!
         # Note that we are storing False here!
         '--no_multcoeff', required = False, default = False, action = 'store_true',
-        #help = 'Do not apply the multinomial coefficient in the likelihood calculation. Default=False (The multinomal coefficient will be used.)',
-        help=argparse.SUPPRESS,
+        help = 'Do not apply the multinomial coefficient in the likelihood calculation. Default=False (The multinomal coefficient will be used.)',
+        #help=argparse.SUPPRESS,
         dest = 'multinomial_correction'
     )
 

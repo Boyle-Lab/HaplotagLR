@@ -259,6 +259,7 @@ def _count_matches(
     ploidy_phase_set = 0
 
     # Sanity check for aberant invocation
+    #sys.stderr.write("262: %s, %s\n" % (per_base_error_rate, read_base_error_rates))
     if per_base_error_rate is None and read_base_error_rates is None:
         # Throw a warning and return an empty result.
         sys.stderr.write("WARNING: _count_matches invoked with no values for per_base_error_rate or read_base_error_rates. Affected read(s) will be labelled nonphasable.")
@@ -307,7 +308,9 @@ def _count_matches(
             short, I'm leaving this as-is for now and relying on only simple SNPs being passed in
             in tagged_alleles.
             """
-            if read_base_error_rates is not None:   # Default to actual error rates whenever we can
+            #sys.stderr.write("%s\n" % (read_base_error_rates))
+            if read_base_error_rates is not None:
+                # Use base-wise qualities to calculate local error rate
                 """
                 This scoring mode equates to a generalized multinomial model, where
                 the error probability is allowed to vary from site to site. Therefore,
@@ -575,7 +578,7 @@ class PhaseSet:
     
     def solve_phase(
             self, error_model: object = 0, error_rate_threshold: object = 0.01, prior_probabilities: object = None,
-            multinomial_correction: object = True
+            multinomial_correction: object = True, global_epsilon = None
             ) -> object:
         """
 
@@ -599,12 +602,18 @@ class PhaseSet:
                 yield valid multinomial probabilities under the current implementation of _multcoeff.
                 See further notes in _count_matches.
                 """
+                #sys.stderr.write("606: %s\n" % (error_model))
+                if global_epsilon is not None:
+                    self.per_base_mismatch_rate = global_epsilon
+                    self.error_rate_average_het_sites = global_epsilon
                 
-                if error_model == 0:
+                elif error_model == 0:
+                    # Default error model: Use read-based average error rate.
                     self.per_base_mismatch_rate = self.aligned_segment.get_tag(tag = 'de')
                     self.error_rate_average_het_sites = self.aligned_segment.get_tag(tag = 'de')
 
                 elif error_model < 5:
+                    # All these modes use base-wise error rates calculated from phred-scale quality scores.
                     self.read_base_error_rates, self.error_rate_average_het_sites, self.per_base_mismatch_rate = self._retrieve_read_base_error_rates(
                         self.aligned_segment,
                         self.gapped_alignment_positions,
@@ -622,7 +631,8 @@ class PhaseSet:
                     #sys.stderr.write("PS 622: %s, %s %s, %s, %s, %s\n" % (self.log_probability_read_given_haplotype_i, self.non_matches, self.matches, self.total_hets, self.total_hets_analyzed, self.ploidy_phase_set))
                     # This is to watch for debug info from a log10(0) error:
                     if self.log_probability_read_given_haplotype_i == 9999999999999999999999999:
-                        sys.stderr.write("%s\n" % (self.aligned_segment))
+                        #sys.stderr.write("%s\n" % (self.aligned_segment))
+                        pass
                     
                     self.log_likelihood_ratios, self.tag, self.max_phase, self.max_log_likelihood_ratio = _phasing_decision(
                         self.log_probability_read_given_haplotype_i,
