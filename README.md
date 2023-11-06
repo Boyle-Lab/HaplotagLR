@@ -48,14 +48,17 @@ HaplotagLR currently only offers haplotag mode, but may support more operations 
 
 
 ### Haplotag Mode
-Tool for haplotagging individual long reads. Haplotags long reads based on phased variants in a VCF file, performing essentially the reverse operation of read-based phasing.
+A tool for haplotagging individual long reads using pre-phased haplotypes
 
 ```
-usage: HaplotagLR haplotag [-h] -v <VCF_FILE> -i <SAM/BAM/FASTQ>
-                      [-o </path/to/output>] [-r <REF_FASTA>]
-                      [-A <ASSEMBLY_NAME>] [-t <THREADS>] [-q] [-S]
-                      [-O {combined,phase_tagged,full}] [-F FDR_THRESHOLD]
-                      [--log_likelihood_threshold <MIN_LIKELIHOOD_RATIO>]
+usage: HaplotagLR haplotag [-h] -v <VCF_FILE> -i <SAM/BAM/FASTQ>             
+                           [-o </path/to/output>] [-r <REF_FASTA>]            
+                           [-A <ASSEMBLY_NAME>] [-t <THREADS>] [-q] [-S] 
+                           [-O {combined,phase_tagged,full}]
+                           [-s <SAMPLE_NAME>] [-e EPSILON] [-c]
+                           [-F FDR_THRESHOLD]                              
+                           [--log_likelihood_threshold <MIN_LIKELIHOOD_RATIO>]
+                           [--no_multcoeff]
 ```
 
 #### Required Arguments
@@ -79,12 +82,33 @@ usage: HaplotagLR haplotag [-h] -v <VCF_FILE> -i <SAM/BAM/FASTQ>
 | Argument | Description |
 |---|---|
 | __-O {combined,phase_tagged,full}, --output_mode {combined,phase_tagged,full}__ | Specify whether/how phased, unphased, and nonphasable reads are printed to output. Modes available: combined: All reads will be written to a common output file. The phase tag (HP:i:N) can be used to extract maternal/paternal phased reads, unphased reads, and nonphasable reads. phase_tagged: Phased reads for both maternal and paternal phases will be written to a single output file, while unphased and nonphasable reads will be written to their own respective output files. full: Maternal, paternal, unphased, and nonphasable reads will be printed to separate output files. |
+| __-s <SAMPLE_NAME>, --one_sample <SAMPLE_NAME>__ | Use the --one_sample option to haplotag a specific sample present in the input reads and vcf file. (-HG001) |
 
 #### Statistical Options for Haplotag Mode
 | Argument | Description |
 |---|---|
+| __-e EPSILON, --epsilon EPSILON__ | Use this value for the estimated sequencing error rate epsilon. This value will be used instead of calculating per-base error rates from quality scores, and in calculating the FDR threshold value rather than estimating the global mean sequencing error rate. Default = None. |
+| __-c, --epsilon_from_quality_scores__ | Calculate per-base error rates directly from Phred scores in the BAM input. Default = False. |
 | __-F FDR_THRESHOLD, --FDR_threshold FDR_THRESHOLD__ | Control the false discovery rate at the given value using a negative-binomial estimate of the number of haplotagging errors (N) given the average per-base sequencing error rate observed among all phaseable reads. Phased reads are sorted by their observed log-likelihood ratios and the bottom N*(1-FDR) reads will be reassigned to the "Unphased" set. Set this to zero to skip this step and return all haplotagging predictions. Default = 0.|
 | __--log_likelihood_threshold <LOG_LIKELIHOOD_THRESHOLD>__ | Use a hard threshold on log-likelihood ratios when haplotagging reads. Results will only be printed for predicted haplotaggings with log-likelihood ratios equal to or greater than this threshold. Setting this to zero will cause all reads to be assigned to the phase to which they share the greatest number matches. Log-likelihood ratios will still be reported in the output in this case, but are not used for haplotagging decisions. |
+| __--no_multcoeff__ | Do not apply the multinomial coefficient in the likelihood calculation. Default=False (The multinomal coefficient will be used.) |
+
+## Interpreting the Output
+By default, HaplotagLR tags each record with several key:type:value tuples to encode the haplotagging decision and several values used in the tagging decision. These are written as BAM records to one or more output files, depending on invocation (See help for -O option). Specific tags added to each record are described below:
+
+| Tag | Description |
+|---|---|
+| al | Alignment type, e.g., supplementary. Added if not already present in BAM record. |
+| PS | Name of the overlapping phase set. |
+| py | Ploidy number of overlapping phase set. |
+| HS | Number of heterozygous variants overlapping read. |
+| GP | Comma-delimited list of overlapping variants' position(s) relative to the read start. |
+| PA | Phased alleles for all haplotypes overlapping read. Comma-delimited list of tuples. |
+| OA | Observed allele(s) in sequenced read at heterozygous positions. May or may not match one of the values in PA! |
+| PR | Comma-delimited list of Bayesian prior values. |
+| LS | Comma-delimited list of Log-Likelihood-Ratios for each haplotype. |
+| PC | Log-Likelihood-Ratio for assigned haplotag. |
+| HP | Assigned haplotag. |
 
 ## Example Dataset
 We provide a sample dataset and example usage [here](https://github.com/Boyle-Lab/HaplotagLR/tree/main/example_data)
