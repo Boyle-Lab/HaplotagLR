@@ -521,7 +521,7 @@ class PhaseSet:
         self.multinomial_correction = multinomial_correction
         self.gapped_alignment_positions = []
         self.read_bases = []
-        self.tagd_alleles = []
+        self.phased_alleles = []
         self.reference_positions = []
         self.log_likelihood_ratios = []
         self.max_log_likelihood_ratio = None

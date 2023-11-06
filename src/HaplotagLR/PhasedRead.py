@@ -414,14 +414,30 @@ class PhasedRead:
             prior_probabilities,
             multinomial_correction
         )
-        #sys.stderr.write("414: %s, %s, %s, %s\n" % (_PhaseSet_max.log_likelihood_ratios, _PhaseSet_max.tag, _PhaseSet_max.max_phase, _PhaseSet_max.max_log_likelihood_ratio))
+        #sys.stderr.write("PR 417: %s\n" % (','.join([str(n) for n in _PhaseSet_max.log_likelihood_ratios])))
+        #sys.stderr.write("418: %s, %s, %s, %s\n" % (_PhaseSet_max.log_likelihood_ratios, _PhaseSet_max.tag, _PhaseSet_max.max_phase, _PhaseSet_max.max_log_likelihood_ratio))
         self._PhaseSet_max = _PhaseSet_max
         
         self.aligned_segment.set_tag(tag = 'PS', value = str(self.phase_set_name), value_type='Z', replace=True)
+        # Max phase set name
         self.aligned_segment.set_tag(tag = 'HP', value = str(self.tag), value_type='Z', replace=True)
+        # Max log-likelihood ratio
         self.aligned_segment.set_tag(tag = 'PC', value = str(self.log_likelihood_ratio), value_type='Z', replace=True)
+        # Ploidy
         self.aligned_segment.set_tag(tag = 'py', value = str(self.ploidy_phase_set), value_type='Z', replace=True)
-        self.aligned_segment.set_tag(tag = 'HS', value = str(self._PhaseSet_max.total_hets), value_type='Z', replace=True)
+        # Het site count
+        self.aligned_segment.set_tag(tag = 'HS', value = str(_PhaseSet_max.total_hets), value_type='Z', replace=True)
+        # Log-likelihood ratios for all phase sets
+        self.aligned_segment.set_tag(tag = 'LS', value = ','.join([str(n) for n in _PhaseSet_max.log_likelihood_ratios])), value_type='Z', replace=True)
+        # Prior prob. values
+        self.aligned_segment.set_tag(tag = 'PR', value = ','.join([str(n) for n in _PhaseSet_max.prior_probabilities])), value_type='Z', replace=True)
+        # Relative position of variants (from read start)
+        self.aligned_segment.set_tag(tag = 'GP', value = ','.join([str(n) for n in _PhaseSet_max.gapped_alignment_positions])), value_type='Z', replace=True)
+        # Phased alleles (tuples)
+        self.aligned_segment.set_tag(tag = 'PA', value = ','.join([str(n) for n in _PhaseSet_max.phased_alleles])), value_type='Z', replace=True)
+        # Observed allele
+        self.aligned_segment.set_tag(tag = 'OA', value = ','.join([str(n) for n in _PhaseSet_max.read_bases])), value_type='Z', replace=True)
+        
         
         return self
     
