@@ -31,9 +31,9 @@ global-exclude *.py[cod] __pycache__/* *.so *.dylib
 # include tests/haplotype_info_vcf/*.vcf.gz
 # include tests/haplotype_info_vcf/*
 # include tests/reference_sequence_fa/*
-# include LRphase/*
-# include LRphase/cli.py
-# include LRphase/__version__.py
+# include HaplotagLR/*
+# include HaplotagLR/cli.py
+# include HaplotagLR/__version__.py
 # data/urls.py
 # data/__init__.py
 # data/*

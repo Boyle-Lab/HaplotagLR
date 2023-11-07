@@ -2,7 +2,7 @@
 
 import sys
 if sys.version_info > (3, ) and sys.version_info < (3, 7):
-    sys.exit("ERROR: LRphase requires Python 3.7 or greater")
+    sys.exit("ERROR: HaplotagLR requires Python 3.7 or greater")
 
 #from __future__ import absolute_import
 #from __future__ import print_function
@@ -30,7 +30,7 @@ def readme():
 def main():
 
     metadata = dict(
-        name = 'LRphase',
+        name = 'HAplotagLR',
         version = '1.1.3',
         license = 'MIT',
         description = 'Phasing individual long reads using known haplotype information.',
@@ -39,10 +39,10 @@ def main():
         long_description_content_type = 'text/markdown',
         author = 'Greg Farnum',
         author_email = 'gregfar@umich.edu',
-        url = 'https://github.com/Boyle-Lab/LRphase.git',
+        url = 'https://github.com/Boyle-Lab/HaplotagLR.git',
         packages = find_packages('src'),
         package_dir = {'':'src'},
-        py_modules = [splitext(basename(path))[0] for path in glob('src/LRphase/*.py')],
+        py_modules = [splitext(basename(path))[0] for path in glob('src/HaplotagLR/*.py')],
         include_package_data = True,
         zip_safe = False,
         classifiers = [
@@ -67,7 +67,7 @@ def main():
             'Topic :: Software Development :: Version Control :: Git'
         ],
         project_urls = {
-            'Issue Tracker':'https://github.com/Boyle-Lab/LRphase/issues',
+            'Issue Tracker':'https://github.com/Boyle-Lab/HaplotagLR/issues',
         },
         keywords = [
             'long-reads', 'phasing', 'haplotype',
@@ -89,7 +89,7 @@ def main():
         ],
         entry_points = {
             'console_scripts':[
-            'LRphase = LRphase.cli:main',
+            'HaplotagLR = HaplotagLR.cli:main',
             ]
         }
     )
