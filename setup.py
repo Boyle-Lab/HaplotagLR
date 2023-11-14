@@ -30,7 +30,7 @@ def readme():
 def main():
 
     metadata = dict(
-        name = 'HAplotagLR',
+        name = 'HaplotagLR',
         version = '1.1.4',
         license = 'MIT',
         description = 'Phasing individual long reads using known haplotype information.',
