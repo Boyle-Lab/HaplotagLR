@@ -29,11 +29,14 @@ def haplotag(args):
     sys.stderr.write('\nAnalyzing inputs using haplotag mode...\n\n')
     #sys.stderr.write("%s\n" % args)
 
-    # This is a hack to avoid exposing the error modes arg. Instead, if we are to calculate
-    # local error rates from quality scores, we invoke error mode 1 here by setting the
+    # This is a hack to avoid exposing the error modes arg, which is a mess. Instead, if we are to calculate
+    # local error rates from quality scores, we invoke error mode 2 here by setting the
     # arg manually.
     if args.epsilon_from_quality_scores:
-        args.error_model = 2
+        if args.global_epsilon is not None:
+            sys.stderr.write("WARNING: Both --global_epsilon and --epsilon_from_quality_scores arguments provided. Only --global_epsilon will be used!\n")
+        else:
+            args.error_model = 2
         #sys.stderr.write("%s\n" % (args.error_model))
 
     # Check for VCF sample names if -s arg not supplied.
@@ -109,7 +112,7 @@ def haplotag(args):
                                      powlaw_alpha = args.powlaw_alpha,
                                      powlaw_xmin = args.powlaw_xmin,
                                      multinomial_correction = args.multinomial_correction,
-                                     epsilon = args.epsilon,
+                                     epsilon = args.global_epsilon,
                                      error_model = args.error_model
                                      
             )
@@ -151,7 +154,7 @@ def haplotag(args):
             # 4) Relabel reads with LLR < LLR_LIST[E+1] as unphased
             # 4b) Add tag for Z-score of some sort
             # 5) Print results
-            trim_phased_reads_to_fdr_neg_binom(phased_reads_list, args.FDR_threshold, output_streams, args, args.epsilon)
+            trim_phased_reads_to_fdr_neg_binom(phased_reads_list, args.FDR_threshold, output_streams, args, args.global_epsilon)
                 
         # Close output file(s)(
         for outfile in output_streams.keys():
@@ -928,7 +931,7 @@ def getArgs() -> object:
     haplotag_parser_output.add_argument(
         '-O', '--output_mode', type=str, required=False, default="combined",
         choices=['combined', 'phase_tagged', 'full'],
-        help = 'Specify whether/how phased, unphased, and nonphasable reads are printed to output. Modes available:\n\tcombined: All reads will be written to a common output file. The phasing tag (HP:i:N) can be used to extract maternal/paternal phased reads, unphased reads, and nonphasable reads.\n\tphase_tagged: Phased reads for both maternal and paternal phases will be written to a single output file, while unphased and nonphasable reads will be written to their own respective output files.\n\tfull: Maternal, paternal, unphased, and nonphasable reads will be printed to separate output files.',
+        help = 'Specify whether/how haplotaggeded, untagged, and nontaggable reads are printed to output. Modes available:\n\tcombined: All reads will be written to a common output file. The phasing tag (HP:i:N) can be used to extract maternal/paternal haplotagged reads, untagged reads, and nontaggable reads.\n\tphase_tagged: Haplotagged reads for both maternal and paternal phases will be written to a single output file, while untagged and nontaggable reads will be written to their own respective output files.\n\tfull: Maternal, paternal, untagged, and nontaggable reads will be printed to separate output files.',
         action = 'store'
     )
 
@@ -955,16 +958,16 @@ def getArgs() -> object:
     
     ############## Statistical and error options for phasing mode ##############
     haplotag_parser_stats_error: argparse._ArgumentGroup = haplotag_parser.add_argument_group(
-        'Statistical options for phasing model',
-        'Options to modify thresholds and error parameters involved in phasing decisions.'
+        'Statistical options for haplotagging model',
+        'Options to modify thresholds and error parameters involved in haplotagging decisions.'
     )
 
     haplotag_parser_stats_error.add_argument(
-        '-e', '--epsilon',
+        '-e', '--global_epsilon',
         type = float,
         required = False,
         default = None,
-        help = 'Use this value for the estimated sequencing error rate epsilon. This value will be used instead of calculating per-base error rates from quality scores, and in calculating the FDR threshold value rather than estimating the global mean sequencing error rate. Default = None.'
+        help = 'Use a global value for the sequencing error rate, epsilon. By default, epsilon is calculated per read as the mean observed error rate. With --global_epsilon, epsilon will be fixed at the given value when scoring reads and in calculating the FDR threshold value for the optional haplotagging error model (see --FDR_threshold). Supersedes --epsilon_from_quality_scores.'
     )
 
     
@@ -973,7 +976,7 @@ def getArgs() -> object:
         required = False,
         default = False,
         action = 'store_true',
-        help = 'Calculate per-base error rates directly from Phred scores in the BAM input. Default = False.'
+        help = 'Obtain the sequencing error rate, epsilon, as per-base observed error rates, calculated directly from Phred scores in each BAM record. Default = Epsilon is calculated as the mean error rate per-read. Superseded by --global_epsilon.'
     )
 
     haplotag_parser_stats_error.add_argument(
@@ -981,7 +984,7 @@ def getArgs() -> object:
         type = float,
         required = False,
         default = 0,
-        help = 'Control the false discovery rate at the given value using a negative-binomial estimate of the number of phasing errors (N) given the average per-base sequencing error rate observed among all phaseable reads. Phased reads are sorted by their observed log-likelihood ratios and the bottom N*(1-FDR) reads will be reassigned to the "Unphased" set. Set this to zero to skip this step and return all phasing predictions. Default = 0.'
+        help = 'Control the false discovery rate at the given value using a negative-binomial estimate of the number of haplotagging errors (N) given the average per-base sequencing error rate observed among all taggable reads. Haplotagged reads are sorted by their observed log-likelihood ratios and the bottom N*(1-FDR) reads will be reassigned to the "Untagged" set. Set this to zero to skip this step and return all haplotagging predictions. Default = 0.'
     )
 
     haplotag_parser_stats_error.add_argument(
@@ -1016,7 +1019,7 @@ def getArgs() -> object:
         type = float,
         required = False,
         default = -1.0,
-        help = 'Use a hard threshold on log-likelihood ratios when phasing reads. Results will only be printed for predicted phasings with log-likelihood ratios equal to or greater than this threshold. Setting this to zero will cause all reads to be assigned to the phase to which they share the greatest number matches. Log-likelihood ratios will still be reported in the output in this case, but are not used for phasing decisions.',
+        help = 'Use a hard threshold on log-likelihood ratios when haplotagging reads. Results will only be printed for predicted haplotags with log-likelihood ratios equal to or greater than this threshold. Setting this to zero will cause all reads to be assigned to the phase to which they share the greatest number matches. Log-likelihood ratios will still be reported in the output in this case, but are not used for haplotagging decisions.',
         metavar = '<MIN_LIKELIHOOD_RATIO>'
     )
 
