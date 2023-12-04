@@ -24,7 +24,7 @@ HaplotagLR haplotags long reads based on existing, pre-phased haplotypes in VCF 
 
 We strongly recommend installing with conda, into a new environment:
 ```
-conda create -n HaplotagLR_env -c conda-forge -c bioconda numpy pysam powerlaw pyliftover pbsim2 minimap2 requests samtools HaplotagLR python==3.7
+conda create -n HaplotagLR_env -c conda-forge -c bioconda numpy pysam powerlaw pyliftover pbsim2 minimap2 requests samtools HaplotagLR
 ```
 
 Install with pip:
