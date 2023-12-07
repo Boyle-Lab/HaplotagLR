@@ -35,13 +35,13 @@ pip install HaplotagLR
 Installation from the github repository is not recommended. However, if you must, follow the steps below:
 1) git clone https://github.com/Boyle-Lab/HaplotagLR.git
 2) cd HaplotagLR/
-3) python3.7 -m pip install -e .
+3) python3 -m pip install -e .
 
 
 ## Usage
 
 ```
-HaplotagLR [-h] [--version] [-q] {haplotag,phasability,error_analysis} ...
+HaplotagLR [-h] [--version] [-q] {haplotag} ...
 ```
 
 HaplotagLR currently only offers haplotag mode, but may support more operations in future releases.
