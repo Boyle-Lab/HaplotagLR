@@ -116,6 +116,6 @@ We provide a sample dataset and example usage [here](https://github.com/Boyle-La
 ## Citing HaplotagLR
 The HaplotagLR algorithm and software release 1.0.3 are described in [pub link here](https://example.com). Please use the following citation if you use this software in your work:
 
-HaplotagLR: an efficient algorithm for assigning haplotypic identity to long reads.
+HaplotagLR: An efficient and configurable utility for haplotagging long reads
 Monica J. Holmes, Babak Mahjour, Christopher Castro, Gregory A. Farnum, Adam G. Diehl, Alan P. Boyle.
-2022. BioArxiv. [URL](http://example.com)
+(2024) PLOS ONE 19(3): e0298688. [URL](https://doi.org/10.1371/journal.pone.0298688)
