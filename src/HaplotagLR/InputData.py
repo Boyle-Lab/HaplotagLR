@@ -566,7 +566,7 @@ class InputData:
         # Check for phasing information
         if pysam.VariantFile(vcf_file_path).header.formats.keys().count('PS') == 0:
             ignore_phase_sets = True
-            sys.stderr.write("This VCF file does not have the PS subfield. Phase sets will be ignored and all phased variants on the same chromosome (vcf contig) will be considered to be one contiguous haploblock " % vcf_file_path)
+            sys.stderr.write("This VCF file does not have the PS subfield: %s\nPhase sets will be ignored and all phased variants on the same chromosome (vcf contig) will be considered to be one contiguous haploblock." % vcf_file_path)
 
         # Append the VCF file path to self.vcf_files[], etc.
         self.vcf_files.append({vcf_file_path:ignore_phase_sets})
