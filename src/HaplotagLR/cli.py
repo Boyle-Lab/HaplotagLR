@@ -138,7 +138,7 @@ def haplotag(args):
             # can be processed immediately. If not using the negative binomial error model,
             # we can process phased reads now too. For the negative-binomial error model, we
             # need to store all phased reads for later processing/relabeling/filtering.
-            if args.FDR_threshold <= 0 or not phased_read.is_phased:
+            if args.FDR_threshold <= 0 or not phased_read.is_tagged:
                 write_bam_output(phased_read, output_streams, args)
             else:
                 # Read is phased and we are using the negative-binomial haplotag error model.
@@ -277,7 +277,7 @@ def write_phase_tagged_bam_output(phased_read, phased_output_bam,
     reads written to their own files.
 
     """
-    if phased_read.is_phased:
+    if phased_read.is_tagged:
         if (args.log_likelihood_threshold >= 0 and phased_read.log_likelihood_ratio >= args.log_likelihood_threshold) or phased_read.haplotag_error_rate <= args.error_rate_threshold:
             # Phased read passing the error-rate/score threshold.
             phased_read.write_to_bam(output_bam_pysam = phased_output_bam)
@@ -298,7 +298,7 @@ def write_full_bam_output(phased_read, maternal_output_bam, paternal_output_bam,
     unphased and nonphasable reads written to their own files.
     """
     # TO-DO: Need to handle all possible levels of ploidy.
-    if phased_read.is_phased:
+    if phased_read.is_tagged:
         if (args.log_likelihood_threshold >= 0 and phased_read.log_likelihood_ratio >= args.log_likelihood_threshold) or phased_read.haplotag_error_rate <= args.error_rate_threshold:
             if phased_read.phase == 1:
                 phased_read.write_to_bam(output_bam_pysam = paternal_output_bam)
