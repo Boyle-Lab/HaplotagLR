@@ -31,7 +31,7 @@ def main():
 
     metadata = dict(
         name = 'HaplotagLR',
-        version = '1.1.7',
+        version = '1.1.8',
         license = 'MIT',
         description = 'Phasing individual long reads using known haplotype information.',
         description_content_type = 'text/plain',
