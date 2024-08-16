@@ -1,4 +1,4 @@
-__version__ = '1.1.8'
+__version__ = '1.1.9'
 try:
     from ._HaplotagLR import longest  # noqa
 except ImportError:
