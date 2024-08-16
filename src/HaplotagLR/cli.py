@@ -284,7 +284,7 @@ def write_phase_tagged_bam_output(phased_read, phased_output_bam,
         else:
             # Haplotag score does not pass threshold. Treat as unphased.
             phased_read.write_to_bam(output_bam_pysam = unphased_output_bam)
-    elif phased_read.is_Unphased:
+    elif phased_read.is_Untagged:
         phased_read.write_to_bam(output_bam_pysam = unphased_output_bam)
     else: # Nonphasable
         phased_read.write_to_bam(output_bam_pysam = nonphasable_output_bam)
@@ -307,7 +307,7 @@ def write_full_bam_output(phased_read, maternal_output_bam, paternal_output_bam,
         else:
             # Haplotag score does not pass threshold. Label as unphased and handle accordingly.
             phased_read.write_to_bam(output_bam_pysam = unphased_output_bam)
-    elif phased_read.is_Unphased:
+    elif phased_read.is_Untagged:
         phased_read.write_to_bam(output_bam_pysam = unphased_output_bam)
     else: # Nonphasable
         phased_read.write_to_bam(output_bam_pysam = nonphasable_output_bam)
@@ -802,11 +802,11 @@ def parse_simulated_data(input_data, args):
         # To-Do: Work in ability to select/ignore specific samples
         for alignment in phasable_sample:
             phased_read = PhasedRead(alignment, vcf_file = phasable_sample.vcf_file_path, sample = 'HG001', evaluate_true_alignment = True)
-            if phased_read.alignment_is_mapped and phased_read.matches_true_alignment and phased_read.is_phased and int(phased_read.aligned_segment.get_tag('HS')) > 1:
+            if phased_read.alignment_is_mapped and phased_read.matches_true_alignment and phased_read.is_tagged and int(phased_read.aligned_segment.get_tag('HS')) > 1:
                 log_ratios.append(phased_read.log_likelihood_ratio)
-                is_phased_correctly.append(phased_read.is_phased_correctly)
-                if not phased_read.is_phased_correctly:
-                    #sys.stderr.write("%s\n%s\n" % (phased_read, phased_read.is_phased_correctly))
+                is_phased_correctly.append(phased_read.is_tagged_correctly)
+                if not phased_read.is_tagged_correctly:
+                    #sys.stderr.write("%s\n%s\n" % (phased_read, phased_read.is_tagged_correctly))
                     error_lr_list.append(phased_read.log_likelihood_ratio)
                     error_read_list.append(phased_read)
         
