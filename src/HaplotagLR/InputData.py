@@ -845,8 +845,9 @@ class InputData:
                         # self.sample_to_PG_header[sample].append(PG_tag)
                         new_PG_tag: bool = True
                         for PG_header in self.sample_to_PG_header[sample]:
-                            if PG_tag['PN'] == PG_header['PN'] and PG_tag['ID'] == PG_header['ID']:
-                                new_PG_tag = False
+                            if 'PN' in PG_tag and 'PN' in PG_header and 'ID' in PG_tag and 'ID' in PG_header:
+                                if PG_tag['PN'] == PG_header['PN'] and PG_tag['ID'] == PG_header['ID']:
+                                    new_PG_tag = False
                         if new_PG_tag:
                             self.sample_to_PG_header[sample].append(PG_tag)
                         # self.sample_to_PG_header[sample].append(PG_tag)
