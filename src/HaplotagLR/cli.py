@@ -206,7 +206,7 @@ def trim_phased_reads_to_fdr_neg_binom(phased_reads_list, FDR_threshold, output_
     for i, phased_read in enumerate(sorted_reads_list):
         if i < e:
             # Relabel the first e observations as Unphased.
-            phased_read.PhaseSet_max.phase = 'Unphased'
+            phased_read.PhaseSet_max.tag = 'Unphased'
             phased_read.aligned_segment.set_tag(tag = 'HP', value = "Untagged", value_type='Z', replace=True)
         #sys.stderr.write("%s: %s, %s\n" % (phased_read.query_name, phased_read.PhaseSet_max.phase, phased_read.PhaseSet_max.max_log_likelihood_ratio))
         write_bam_output(phased_read, output_streams, args)
@@ -300,7 +300,7 @@ def write_full_bam_output(phased_read, maternal_output_bam, paternal_output_bam,
     # TO-DO: Need to handle all possible levels of ploidy.
     if phased_read.is_tagged:
         if (args.log_likelihood_threshold >= 0 and phased_read.log_likelihood_ratio >= args.log_likelihood_threshold) or phased_read.haplotag_error_rate <= args.error_rate_threshold:
-            if phased_read.phase == 1:
+            if phased_read.haplotype == 1:
                 phased_read.write_to_bam(output_bam_pysam = paternal_output_bam)
             else:
                 phased_read.write_to_bam(output_bam_pysam = maternal_output_bam)
@@ -615,9 +615,9 @@ def error_analysis(args):
                         err_read.aligned_segment.reference_length,
                         err_rate_mean,
                         err_read.PhaseSet_max.total_hets_analyzed,
-                        err_read.phase,
-                        err_read.PhaseSet_max.matches[err_read.phase-1],
-                        err_read.PhaseSet_max.non_matches[err_read.phase-1],
+                        err_read.tag,
+                        err_read.PhaseSet_max.matches[err_read.tag-1],
+                        err_read.PhaseSet_max.non_matches[err_read.tag-1],
                         err_read.PhaseSet_max.log_probability_read_given_haplotype_i[0],
                         err_read.PhaseSet_max.log_probability_read_given_haplotype_i[1],
                         err_read.log_likelihood_ratio,

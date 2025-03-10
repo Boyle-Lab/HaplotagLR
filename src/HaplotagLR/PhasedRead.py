@@ -487,6 +487,7 @@ class PhasedRead:
         # in a try block to prevent premature termination. Aligned segments that map to
         # such contigs will be skipped.
         try:
+            #sys.stderr.write("%s, %s, %s\n\n" % (aligned_segment.reference_name, aligned_segment.reference_start, aligned_segment.reference_end ))
             vcf_recs = vcf_in.fetch(aligned_segment.reference_name, aligned_segment.reference_start, aligned_segment.reference_end)
             # Note that coordinates supplied in this way are assumed zero-based by pysam (see source code, https://github.com/pysam-developers/pysam/blob/master/pysam/libcbcf.pyx, line 4366. We should verify these are zero-based. If not, use pysam chr:start-end string -- these are treated as one-based. This may not be a huge deal, since only variants coinciding with the start/end of the fragment will be affected.
             #sys.stderr.write("PR 473: %s, ingnore_phase_sets: %s, sample: %s\n\n" % (vcf_recs, ignore_phase_sets, sample))
