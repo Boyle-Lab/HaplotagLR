@@ -13,7 +13,7 @@ from HaplotagLR.PhaseSet import powlaw_modified, _estimate_prior_probabilities
 from HaplotagLR.InputData import *
 from HaplotagLR import urls
 
-__version__ = "1.1.9"
+__version__ = "1.1.10"
 
 # TO-DO:
 ## The main haplotagging function should be a wrapper that loops over samples
