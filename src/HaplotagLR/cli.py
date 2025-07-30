@@ -62,9 +62,10 @@ def haplotag(args):
                            silent = args.silent_mode
     )
     input_data.add_haplotype_information(args.vcf_file_name)
-    input_data.add_reference_sequence(args.reference_genome,
-                                      reference_sequence_input_assembly = args.reference_assembly,
-                                      output_directory = args.output_directory_name)
+    if args.reference_genome is not None:
+        input_data.add_reference_sequence(args.reference_genome,
+                                          reference_sequence_input_assembly = args.reference_assembly,
+                                          output_directory = args.output_directory_name)
     try:
         input_data.add_reads(args.long_read_inputs,
                              sample = sample,
@@ -877,14 +878,14 @@ def getArgs() -> object:
     )
     
     haplotag_parser_optional.add_argument(
-        '-r', '--reference', required = False,
+        '-r', '--reference', required = False, default = None,
         help = 'Path to reference genome sequence file. REQUIRED if -i is used to specify reads in fastq format to be '
         'aligned prior to haplotagging. (file types allowed: .fa, .fna, fasta. EX: -r data/reference_hg38.fna)',
         dest = 'reference_genome', metavar = '<REF_FASTA>'
     )
     
     haplotag_parser_optional.add_argument(
-        '-A', '--reference_assembly', required = False, default="hg38",
+        '-A', '--reference_assembly', required = False, default = None,
         help = 'Assembly for the reference genome. EX: -A hg38.',
         dest = 'reference_assembly', metavar = '<ASSEMBLY_NAME>'
     )
