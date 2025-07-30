@@ -16,7 +16,7 @@ likelihood ratios for each error observation. Using the default bin step size of
 log-likelihood ratio distribution, just somewhat less granular.
 """
 
-__version__ = "1.1.10"
+__version__ = "1.1.11"
 
 
 def parse_histogram_file(log_file):
