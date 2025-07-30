@@ -608,9 +608,19 @@ class PhaseSet:
                     self.error_rate_average_het_sites = global_epsilon
                 
                 elif error_model == 0:
-                    # Default error model: Use read-based average error rate.
-                    self.per_base_mismatch_rate = self.aligned_segment.get_tag(tag = 'de')
-                    self.error_rate_average_het_sites = self.aligned_segment.get_tag(tag = 'de')
+                    # Default error model: Use read-based average error rate from minimap2 'de' tag, or pbmm2 'mg' tag.
+                    err_rate = 0
+                    try:
+                        err_rate = self.aligned_segment.get_tag(tag = 'de')
+                    except:
+                        # BAM lacks minimap2 'de' tags. See if we have 'mg' tags, from pmm2, e.g. These need to be converted to error rate.
+                        try:
+                            err_rate = (100 - self.aligned_segment.get_tag(tag = 'mg'))/100
+                        except:
+                            sys.stderr.write("BAM file lacks per-base sequence divergence tags. (e.g., minimap2 'de' tags or pbmm2 'mg' tags. Please supply a global per-base mismatch rate with -e / --global_epsilon.")
+                            exit(1)
+                    self.per_base_mismatch_rate = err_rate
+                    self.error_rate_average_het_sites = err_rate
 
                 elif error_model < 5:
                     # All these modes use base-wise error rates calculated from phred-scale quality scores.
