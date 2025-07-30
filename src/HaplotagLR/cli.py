@@ -967,7 +967,7 @@ def getArgs() -> object:
         type = float,
         required = False,
         default = None,
-        help = 'Use a global value for the sequencing error rate, epsilon. By default, epsilon is calculated per read as the mean observed error rate. With --global_epsilon, epsilon will be fixed at the given value when scoring reads and in calculating the FDR threshold value for the optional haplotagging error model (see --FDR_threshold). Supersedes --epsilon_from_quality_scores.'
+        help = "Use a global value for the sequencing error rate, epsilon. By default, epsilon is calculated per read as the mean observed error rate. With --global_epsilon, epsilon will be fixed at the given value when scoring reads and in calculating the FDR threshold value for the optional haplotagging error model (see --FDR_threshold). By default, the gap-compressed per-base divergence rate for each read will be used. These are given directly in minimap2 under the 'de' tag, or calculated from the pbmm2 'mg' tag as (100-mg)/100. Supersedes --epsilon_from_quality_scores."
     )
 
     
@@ -976,7 +976,8 @@ def getArgs() -> object:
         required = False,
         default = False,
         action = 'store_true',
-        help = 'Obtain the sequencing error rate, epsilon, as per-base observed error rates, calculated directly from Phred scores in each BAM record. Default = Epsilon is calculated as the mean error rate per-read. Superseded by --global_epsilon.'
+        help = "Obtain the sequencing error rate, epsilon, as per-base observed error rates, calculated directly from Phred scores in each BAM record. By default, the gap-compressed per-base divergence rate for each read will be used. These are given directly in minimap2 under the 'de' tag, or calculated from the pbmm2 'mg' tag as (100-mg)/100. Superseded by --global_epsilon.
+
     )
 
     haplotag_parser_stats_error.add_argument(
