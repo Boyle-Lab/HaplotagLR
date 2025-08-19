@@ -977,7 +977,7 @@ def getArgs() -> object:
         required = False,
         default = False,
         action = 'store_true',
-        help = "Obtain the sequencing error rate, epsilon, as per-base observed error rates, calculated directly from Phred scores in each BAM record. By default, the gap-compressed per-base divergence rate for each read will be used. These are given directly in minimap2 under the 'de' tag, or calculated from the pbmm2 'mg' tag as (100-mg)/100. Superseded by --global_epsilon.
+        help = "Obtain the sequencing error rate, epsilon, as per-base observed error rates, calculated directly from Phred scores in each BAM record. By default, the gap-compressed per-base divergence rate for each read will be used. These are given directly in minimap2 under the 'de' tag, or calculated from the pbmm2 'mg' tag as (100-mg)/100. Superseded by --global_epsilon."
 
     )
 
